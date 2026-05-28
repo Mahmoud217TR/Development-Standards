@@ -58,9 +58,10 @@ N/A — Events don't return; they exist.
 
 - **There's only one reaction and it will always be there** → call the Service or dispatch the Job directly
 - **The reaction is part of the operation itself** ("the order isn't valid unless inventory decrements") → keep it inside the Action's transaction
+- **The HTTP response needs the result of the reaction** (loyalty points to display, computed totals) → run the work synchronously inside the Action
 - **You want to chain operations** ("after A succeeds, do B, then C") → use job chaining, not events
 - **You want a return value from the reaction** → events fire-and-forget; you won't get one
-- **For audit/logging only** → use proper logging or Observer, not events
+- **For audit/logging only** → use proper logging or a model lifecycle hook
 
 ## Lifecycle
 
@@ -96,7 +97,7 @@ final class OrderPlaced
 Firing it from an Action:
 
 ```php
-public function handle(CreateOrderData $data): Order
+public function handle(CreateOrderDto $dto): Order
 {
     $order = DB::transaction(fn () => Order::create([...]));
     event(new OrderPlaced($order));
@@ -118,53 +119,3 @@ final class NotifyMerchantOfNewOrder implements ShouldQueue
 }
 ```
 
-## Anti-examples
-
-### ❌ Imperative name
-
-```php
-final class SendOrderConfirmation { /* ... */ }   // ❌
-final class OrderPlaced { /* ... */ }              // ✅
-```
-
-Events are facts, not commands.
-
-### ❌ Carrying raw fields instead of entity
-
-```php
-final class OrderPlaced
-{
-    public function __construct(
-        public readonly int $orderId,
-        public readonly string $customerName,
-        public readonly string $phone,
-    ) {}
-}
-```
-
-Now every Listener has to refetch the Order to get other fields. Pass the entity.
-
-### ❌ Firing event inside a transaction
-
-```php
-DB::transaction(function () use ($order) {
-    Order::create([...]);
-    event(new OrderPlaced($order));  // ❌ listeners may run before commit
-});
-```
-
-If a queued Listener fires and reads the Order before the transaction commits, it won't find it. Fire events *after* the transaction.
-
-### ❌ Listener with business logic the Action should own
-
-```php
-// Listener
-public function handle(OrderPlaced $event): void
-{
-    if ($event->order->total > 1000) {
-        $event->order->update(['vip' => true]);  // business decision
-    }
-}
-```
-
-This is a business rule about what makes an order VIP — it belongs in the Action that placed the order, not in a Listener.

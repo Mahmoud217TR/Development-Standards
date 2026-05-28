@@ -190,7 +190,7 @@ Schedule::job(new SendDailyDigestToMerchants)->dailyAt('08:00');
 
 ```php
 // Inside an Action
-public function handle(CreateOrderData $data): Order
+public function handle(CreateOrderDto $dto): Order
 {
     $order = DB::transaction(fn () => Order::create([...]));
     event(new OrderPlaced($order));
@@ -212,43 +212,3 @@ public function stripe(Request $request, StripeService $stripe)
 }
 ```
 
-## Anti-examples
-
-### ❌ Job called directly
-
-```php
-$job = new SendEmail($user);
-$job->handle();   // ❌ defeats async, no retry, no error handling
-```
-
-Always dispatch.
-
-### ❌ Job for trivial work
-
-```php
-final class IncrementCounter implements ShouldQueue
-{
-    public function handle(): void
-    {
-        Cache::increment('counter');
-    }
-}
-```
-
-Queue overhead exceeds benefit. Inline.
-
-### ❌ Job constructor with non-serializable state
-
-```php
-public function __construct(public \PDO $connection) {}  // ❌ not serializable
-```
-
-Constructor args go through serialization. Use IDs, paths, or scalar values.
-
-### ❌ Job that's really an Action
-
-```php
-final class PlaceOrder implements ShouldQueue { /* ... */ }
-```
-
-If a user is waiting for the result of placing an order, it shouldn't be a Job. Actions are synchronous. Jobs are for work no one is waiting for.

@@ -16,11 +16,12 @@ To localize complex read logic — filtering, aggregation, joins, search — int
 
 1. One Query per read operation. Named after what it returns or who it serves.
 2. Exactly one public method: `handle()`.
-3. Dependencies via constructor injection only.
+3. Dependencies via constructor injection only. No `app()` / `resolve()` inside method bodies.
 4. **Read-only.** Never writes to the database or triggers side effects.
-5. Returns typed results: a Collection, a Paginator, a Data class, or a primitive count.
+5. Returns typed results: a Collection, a Paginator, a DTO, or a primitive.
 6. Never fires events.
-7. **`final` by default.**
+7. Never catches exceptions — let them propagate.
+8. **`final` by default.**
 
 ## Shape
 
@@ -38,7 +39,7 @@ final class {Action}{Object}Query
 
 ## Parameters
 
-- **A filter Data class** (preferred) for parameterized reads
+- **A filter DTO** (preferred) for parameterized reads
 - **Domain models** for scoped reads (`User $user` for "their orders")
 - **Primitives** for simple lookups (`int $userId`, `string $term`)
 
@@ -48,7 +49,7 @@ Never accept `Request` directly.
 
 - `Illuminate\Database\Eloquent\Collection` for lists
 - `Illuminate\Contracts\Pagination\LengthAwarePaginator` for paginated lists
-- A Data class for composite reads (dashboard stats, projections)
+- A DTO for composite reads (dashboard stats, projections)
 - A Model for single-record reads (only when business rules are involved; otherwise use `Model::find()` directly)
 - An `int` or `bool` for aggregate/lookup queries
 
@@ -63,7 +64,7 @@ Never accept `Request` directly.
 - The read involves multiple joins, subqueries, or aggregation
 - The read includes scoping for security (e.g., "only this merchant's orders") that must be reused
 - The read hits a non-Eloquent source (search index, external API)
-- The result is a projection — a Data class assembled from multiple sources
+- The result is a projection — a DTO assembled from multiple sources
 
 ## When NOT to use
 
@@ -71,7 +72,6 @@ Never accept `Request` directly.
 - **One-off reads** used in exactly one place with no complexity — inline
 - **Writing data** — that's an Action
 - **Side effects** — Queries never have side effects
-- **Caching layer** alone — caching is a concern that wraps queries; not a reason to create one
 
 ## Lifecycle
 
@@ -85,9 +85,11 @@ Never accept `Request` directly.
 
 - **Triggered by:** controllers, Actions, jobs, console commands, listeners
 - **Registered by:** Laravel's auto-resolved container
-- **Configured by:** filter Data class structure
+- **Configured by:** filter DTO structure
 
-## Example
+## Examples
+
+### List query with filters
 
 ```php
 namespace App\Queries\Orders;
@@ -98,7 +100,7 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 final class ListUserOrdersQuery
 {
-    public function handle(User $user, OrderFilters $filters): LengthAwarePaginator
+    public function handle(User $user, OrderFiltersDto $filters): LengthAwarePaginator
     {
         return $user->orders()
             ->when($filters->status, fn ($q, $status) => $q->where('status', $status))
@@ -120,11 +122,11 @@ final class ListUserOrdersQuery
 ```php
 final class UserDashboardStatsQuery
 {
-    public function handle(User $user, Carbon $from, Carbon $to): DashboardStatsData
+    public function handle(User $user, Carbon $from, Carbon $to): DashboardStatsDto
     {
         $orders = $user->orders()->whereBetween('created_at', [$from, $to]);
 
-        return new DashboardStatsData(
+        return new DashboardStatsDto(
             total_orders: $orders->count(),
             pending_orders: (clone $orders)->where('status', 'pending')->count(),
             total_revenue: (clone $orders)->sum('total_amount'),
@@ -140,7 +142,7 @@ final class SearchProductsQuery
 {
     public function __construct(private SearchService $search) {}
 
-    public function handle(string $term, ProductFilters $filters): Collection
+    public function handle(string $term, ProductFiltersDto $filters): Collection
     {
         $hits = $this->search->index('products')->search($term, [
             'filter' => $filters->toSearchFilter(),
@@ -151,45 +153,18 @@ final class SearchProductsQuery
 }
 ```
 
-## Anti-examples
-
-### ❌ Query with side effects
+### Scoped single-record query (security baked in)
 
 ```php
-final class GetUserAndLogAccessQuery
+final class GetOrderForMerchantQuery
 {
-    public function handle(int $userId): User
+    public function handle(User $merchant, string $orderId): Order
     {
-        $user = User::findOrFail($userId);
-        AccessLog::create(['user_id' => $userId]);  // side effect
-        return $user;
+        // Throws ModelNotFoundException (handled centrally) if not found
+        // OR if order belongs to another merchant — same behavior, secure
+        return $merchant->orders()
+            ->with(['items.product', 'customer'])
+            ->findOrFail($orderId);
     }
 }
 ```
-
-Queries are pure reads. The logging belongs in middleware, an Action, or an Observer.
-
-### ❌ Query using `auth()` internally
-
-```php
-public function handle(OrderFilters $filters): LengthAwarePaginator
-{
-    return auth()->user()->orders()->paginate();  // hidden dependency
-}
-```
-
-The Query secretly depends on the authenticated user. It can't be used from a job or console command. Pass `User $user` as a parameter.
-
-### ❌ Query that's a glorified wrapper
-
-```php
-final class GetOrderByIdQuery
-{
-    public function handle(int $id): Order
-    {
-        return Order::findOrFail($id);
-    }
-}
-```
-
-Zero value over `Order::findOrFail($id)`. Inline it.

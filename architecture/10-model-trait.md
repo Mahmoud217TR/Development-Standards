@@ -1,43 +1,111 @@
-# Model Lifecycle Trait
+# Model Lifecycle Hooks
 
 ## Definition
 
-A PHP trait used by Eloquent models to attach **lifecycle hooks** (creating, updated, deleted, etc.). Implements the `boot{TraitName}()` convention, which Laravel automatically calls when the model boots. This is the team's chosen mechanism for model-level plumbing — UUIDs, slugs, audit logs, cascade cleanups.
+Code attached to Eloquent model events — `creating`, `created`, `updating`, `updated`, `saving`, `saved`, `deleting`, `deleted`, `restoring`, `restored`. Used for model-level plumbing: generating UUIDs, slugs, ordered numbers, audit logging, cascade cleanups. Two mechanisms are allowed; the choice depends on scope.
 
 ## Keywords
 
-Plumbing • Lifecycle hook • Model invariant • Trait • Concern
+Plumbing • Lifecycle hook • Model invariant • Boot • Trait • Concern
 
-## Purpose
+## Two mechanisms
 
-To attach behavior to Eloquent events (`creating`, `updated`, `deleting`, etc.) in a reusable, cross-model way. One trait per concern; models opt-in via `use HasUuid;`.
+### Mechanism 1 (primary) — `boot()` / `booted()` directly in the model
 
-## Rules
+Lives in the model class itself. Used for model-specific hooks.
 
-1. One trait per concern: `HasUuid`, `HasOrderNumber`, `Auditable`, `HasSlug`.
-2. Located in `app/Concerns/`.
-3. Method name follows Laravel's convention: `bootHasUuid()`, `bootAuditable()` etc.
-4. **Plumbing only** — no business logic, no external calls, no side effects beyond the model itself.
-5. No dependency on the authenticated user, current request, or any contextual state. Traits run *always*, no matter who triggered the model save.
-6. Logic should be obvious in 5 lines or less; if not, reconsider whether it belongs as a trait.
-7. Traits should not call Actions, Queries, or external Services.
+```php
+final class Order extends Model
+{
+    protected static function booted(): void
+    {
+        static::creating(function (Order $order) {
+            $order->uuid ??= (string) Str::uuid();
+            $order->number ??= app(OrderNumberGenerator::class)->next();
+        });
+    }
+}
+```
 
-## Shape
+### Mechanism 2 (secondary) — Trait with `boot{Name}()` in `app/Concerns/`
+
+Used only for **cross-cutting concerns** that genuinely apply to multiple models. Avoids copy-paste across many models.
 
 ```php
 namespace App\Concerns;
 
-use Illuminate\Database\Eloquent\Model;
+trait HasUuid
+{
+    protected static function bootHasUuid(): void
+    {
+        static::creating(function ($model) {
+            $model->uuid ??= (string) Str::uuid();
+        });
+    }
+}
+```
+
+Used by:
+
+```php
+final class Order extends Model { use HasUuid; }
+final class Product extends Model { use HasUuid; }
+final class Customer extends Model { use HasUuid; }
+```
+
+## When to use which
+
+| Situation | Mechanism |
+|---|---|
+| Hook is specific to ONE model | `boot()` / `booted()` in the model |
+| Hook is shared by 3+ models | Trait in `app/Concerns/` |
+| One-off behavior (audit on a specific model) | `boot()` / `booted()` in the model |
+| Generic invariants used across many entities (UUIDs) | Trait |
+
+The decision rule: **start with `boot()` / `booted()` in the model**. Promote to a trait only when the third model needs the same hook.
+
+## Rules
+
+1. Hooks do **plumbing only**: UUIDs, slugs, ordered numbers, audit logs, cascade cleanups, model invariants.
+2. **No business logic, side effects, or external calls** in hooks. No sending SMS, no HTTP calls, no event firing.
+3. Hooks should not depend on the authenticated user, current request, or any contextual state. They run *always*, regardless of who triggered the save.
+4. Hooks should be obvious in 5 lines or less.
+5. Hooks should not call Actions, Queries, or external Services.
+6. Observers are **not used** in this standard.
+7. `app()` / `resolve()` is permitted inside `boot{Name}()` static closures (no DI available there).
+
+## Shape
+
+### In the model
+
+```php
+final class {Model} extends Model
+{
+    protected static function booted(): void
+    {
+        static::creating(function ({Model} $model) {
+            // plumbing
+        });
+
+        static::updated(function ({Model} $model) {
+            // plumbing
+        });
+    }
+}
+```
+
+Note: `booted()` runs once when the model class boots; the static event hooks register inside it. Use `booted()` over the legacy `boot()` unless you need to call `parent::boot()` explicitly.
+
+### In a trait
+
+```php
+namespace App\Concerns;
 
 trait Has{Concern}
 {
     protected static function bootHas{Concern}(): void
     {
-        static::creating(function (Model $model) {
-            // plumbing
-        });
-
-        static::updated(function (Model $model) {
+        static::creating(function ($model) {
             // plumbing
         });
     }
@@ -50,52 +118,41 @@ trait Has{Concern}
 }
 ```
 
-## Parameters
-
-Traits hook into Eloquent events; the model instance is the only "parameter."
-
-## Returns
-
-N/A — hooks are void.
-
-## Is it `final`?
-
-Traits cannot be `final` in PHP (the concept doesn't apply to traits). The classes USING the trait are still `final`.
-
 ## When to use
 
+Lifecycle hooks are the right tool for:
 - Generating UUIDs on `creating`
 - Generating slugs on `creating`
 - Generating ordered numbers (`ORD-2026-00001`)
 - Audit logging on `updated` (storing diffs in an audit table)
 - Cascade soft-deletes to related records
-- Setting "created_by" / "updated_by" foreign keys (provided the context is reliable — usually NOT a good fit for traits)
+- Computing derived fields that depend only on the model's own data
 
 ## When NOT to use
 
 - **Sending notifications** (SMS, email) — that's a side effect of a business operation, not a model invariant
 - **External API calls** — too unreliable for lifecycle hooks
 - **Business decisions** ("if total > X, mark VIP") — belongs in Actions
-- **Context-dependent logic** (different behavior per tenant, per user role) — traits run regardless of context
-- **Logic that must be skippable** in some scenarios — observers/traits always run
+- **Context-dependent logic** (different behavior per tenant, per user role) — hooks run regardless of context
+- **Logic that must be skippable** in some scenarios — hooks always run
 
 ## Lifecycle
 
-1. Model class loads
-2. Laravel calls `boot{TraitName}()` once per request (cached after)
-3. Hooks register with the model's event dispatcher
-4. When the model triggers an event (`creating`, `updated`, etc.), registered hooks run
-5. `initialize{TraitName}()` runs on every model instance construction (rare; usually skipped)
+### `boot()` / `booted()` in model
+1. Model class loads (first time per request)
+2. Laravel calls `booted()` once
+3. Static event hooks register with the model's event dispatcher
+4. When the model triggers an event, registered hooks run
 
-## What controls it
-
-- **Triggered by:** Eloquent events fired during model lifecycle
-- **Registered by:** `use HasUuid;` on the model class
-- **Configured by:** the trait code itself; no external configuration
+### Trait `boot{Name}()`
+1. Model class with the trait loads
+2. Laravel calls `boot{Name}()` once per request (cached after)
+3. Hooks register
+4. `initialize{Name}()` runs on every model instance construction
 
 ## Examples
 
-### UUID generation
+### UUID generation as a trait (used across many models)
 
 ```php
 namespace App\Concerns;
@@ -111,29 +168,29 @@ trait HasUuid
             $model->uuid ??= (string) Str::uuid();
         });
     }
-
-    public function initializeHasUuid(): void
-    {
-        $this->mergeCasts(['uuid' => 'string']);
-    }
 }
 ```
 
-Used by:
+### Order number generation as a model-specific hook
 
 ```php
 final class Order extends Model
 {
     use HasUuid;
+
+    protected static function booted(): void
+    {
+        static::creating(function (Order $order) {
+            $order->number ??= app(OrderNumberGenerator::class)->next();
+        });
+    }
 }
 ```
 
-### Audit logging
+### Audit logging as a trait
 
 ```php
 namespace App\Concerns;
-
-use Illuminate\Database\Eloquent\Model;
 
 trait Auditable
 {
@@ -149,105 +206,23 @@ trait Auditable
                 'changed_at' => now(),
             ]);
         });
+    }
+}
+```
 
-        static::deleted(function (Model $model) {
-            $model->audits()->create([
-                'changes' => ['__deleted__' => true],
-                'original' => $model->getOriginal(),
-                'changed_at' => now(),
-            ]);
+### Cascade soft-delete as a model-specific hook
+
+```php
+final class Order extends Model
+{
+    use SoftDeletes;
+
+    protected static function booted(): void
+    {
+        static::deleted(function (Order $order) {
+            $order->items()->delete();
+            $order->shipments()->delete();
         });
     }
 }
 ```
-
-### Slug generation
-
-```php
-namespace App\Concerns;
-
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Str;
-
-trait HasSlug
-{
-    protected static function bootHasSlug(): void
-    {
-        static::creating(function (Model $model) {
-            $model->slug ??= Str::slug($model->{$model->slugSource()});
-        });
-    }
-
-    public function slugSource(): string
-    {
-        return 'name';
-    }
-}
-```
-
-## Anti-examples
-
-### ❌ Business logic in a trait
-
-```php
-trait NotifiesOnOrder
-{
-    protected static function bootNotifiesOnOrder(): void
-    {
-        static::created(function (Model $order) {
-            Sms::send($order->phone, 'Order placed');   // ❌
-            Mail::send(new OrderConfirmation($order));  // ❌
-        });
-    }
-}
-```
-
-This sends SMS and email *every* time an Order is created — including factories in tests, seeders, console commands, retries. Side effects belong in Actions and Listeners.
-
-### ❌ External API calls
-
-```php
-trait SyncToErp
-{
-    protected static function bootSyncToErp(): void
-    {
-        static::updated(function (Model $model) {
-            Http::post('https://erp.example.com/sync', $model->toArray());  // ❌
-        });
-    }
-}
-```
-
-External HTTP inside a lifecycle hook means the API call happens on every test, every seeder, every retry. And if it fails, the whole save fails. Dispatch a Job from an Action instead.
-
-### ❌ Context-dependent logic
-
-```php
-trait TracksCreator
-{
-    protected static function bootTracksCreator(): void
-    {
-        static::creating(function (Model $model) {
-            $model->created_by = auth()->id();   // ❌ context-dependent
-        });
-    }
-}
-```
-
-Fails in console commands, queue jobs, factories — anywhere `auth()` is null. Pass the creator into the Action explicitly.
-
-### ❌ One mega-trait
-
-```php
-trait HasOrderLifecycle
-{
-    protected static function bootHasOrderLifecycle(): void
-    {
-        static::creating(function ($m) { /* uuid, number, slug, audit */ });
-        static::updating(function ($m) { /* audit, sync, notify */ });
-        static::deleting(function ($m) { /* cleanup, archive */ });
-    }
-}
-```
-
-Multiple concerns crammed into one trait. Split into `HasUuid`, `HasOrderNumber`, `Auditable`. Reuse across models.

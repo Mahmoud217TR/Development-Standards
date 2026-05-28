@@ -16,11 +16,12 @@ To isolate the team from external dependencies and library details. When the SMS
 
 1. One Service per capability or external system. `SmsService`, `StripeService`, `PdfRenderer`.
 2. Multiple public methods OK if they belong to the same capability.
-3. Dependencies via constructor injection only.
+3. Dependencies via constructor injection only. No `app()` / `resolve()` inside method bodies.
 4. **No business logic.** A Service does not decide *whether* to send an SMS — it sends one when asked.
 5. Services do not fire events. Events are an orchestration concern; orchestration lives in Actions.
 6. Services should not call Actions or Queries. Direction of dependencies is downward.
-7. **`final` by default**; if it needs a test double, define an interface and have the Service implement it.
+7. **Catching is allowed when translating vendor exceptions to domain exceptions.** Never catch and swallow.
+8. **`final` by default**; if it needs a test double, define an interface and have the Service implement it.
 
 ## Shape
 
@@ -62,7 +63,6 @@ Whatever the capability produces:
 - **A use case** — that's an Action
 - **A read** — that's a Query (a Query may *use* a Service to talk to a search engine)
 - **A model** — domain entities are Models, not Services
-- **Pure functions** — if it's stateless, no dependencies, and trivial, a helper or static method on a value object may suffice
 - **A "logic dumping ground"** named `OrderService` with 15 unrelated methods — that's the anti-pattern Actions exist to solve
 
 ## Lifecycle
@@ -76,38 +76,39 @@ Whatever the capability produces:
 
 - **Triggered by:** Actions, Queries, Listeners, Jobs, console commands
 - **Registered by:** Laravel's container; bind interface to implementation in a Service Provider when using interfaces
-- **Configured by:** constructor (usually from config files via `config()` helper or injected `Repository`)
+- **Configured by:** constructor (usually from config files via injected `Repository` or constants)
 
 ## Examples
 
-### External API wrapper
+### External API wrapper with exception translation
 
 ```php
 namespace App\Services;
 
-final class SmsService implements SmsServiceContract
+use App\Exceptions\PaymentDeclinedException;
+use App\Exceptions\PaymentGatewayException;
+use App\Data\Stripe\RefundDto;
+
+final class StripeService implements PaymentGatewayContract
 {
     public function __construct(
-        private TwilioClient $client,
-        private string $fromNumber,
+        private \Stripe\StripeClient $client,
     ) {}
 
-    public function send(string $to, string $message): SmsDeliveryStatus
+    public function refund(string $chargeId, int $amount): RefundDto
     {
-        $response = $this->client->messages->create($to, [
-            'from' => $this->fromNumber,
-            'body' => $message,
-        ]);
+        try {
+            $response = $this->client->refunds->create([
+                'charge' => $chargeId,
+                'amount' => $amount,
+            ]);
+        } catch (\Stripe\Exception\CardException $e) {
+            throw new PaymentDeclinedException($e->getMessage(), previous: $e);
+        } catch (\Stripe\Exception\ApiErrorException $e) {
+            throw new PaymentGatewayException($e->getMessage(), previous: $e);
+        }
 
-        return new SmsDeliveryStatus(
-            id: $response->sid,
-            status: $response->status,
-        );
-    }
-
-    public function getBalance(): int
-    {
-        return $this->client->account->balance;
+        return RefundDto::from($response);
     }
 }
 ```
@@ -115,10 +116,9 @@ final class SmsService implements SmsServiceContract
 Provider binding:
 
 ```php
-$this->app->bind(SmsServiceContract::class, function () {
-    return new SmsService(
-        client: new TwilioClient(config('services.twilio.key')),
-        fromNumber: config('services.twilio.from'),
+$this->app->bind(PaymentGatewayContract::class, function () {
+    return new StripeService(
+        client: new \Stripe\StripeClient(config('services.stripe.secret')),
     );
 });
 ```
@@ -137,41 +137,33 @@ final class OrderNumberGenerator
 }
 ```
 
-## Anti-examples
-
-### ❌ Service containing business logic
+### SMS service
 
 ```php
-final class OrderService
+final class SmsService implements SmsServiceContract
 {
-    public function place(array $data): Order
+    public function __construct(
+        private SmsClient $client,
+        private string $fromNumber,
+    ) {}
+
+    public function send(string $to, string $message): SmsDeliveryStatus
     {
-        // checks inventory, calculates total, creates order, fires event
+        try {
+            $response = $this->client->send($to, $message, $this->fromNumber);
+        } catch (SmsClientException $e) {
+            throw new SmsDeliveryException($e->getMessage(), previous: $e);
+        }
+
+        return new SmsDeliveryStatus(
+            id: $response->id,
+            status: $response->status,
+        );
+    }
+
+    public function getBalance(): int
+    {
+        return $this->client->account->balance;
     }
 }
 ```
-
-This is a misnamed Action. Each business operation should be its own Action class.
-
-### ❌ Service calling an Action
-
-```php
-final class StripeService
-{
-    public function refund(string $chargeId): void
-    {
-        $result = $this->stripe->refunds->create([...]);
-        app(MarkOrderAsRefunded::class)->handle($result);  // ❌ Service calling Action
-    }
-}
-```
-
-This reverses the dependency direction. The caller should be an Action that uses `StripeService::refund()` and then orchestrates the rest.
-
-### ❌ Service that needs to be mocked but isn't `final`
-
-```php
-class SmsService { /* ... */ }  // not final
-```
-
-If you need a test double, define `SmsServiceContract` and mock the interface. Keep the class final.

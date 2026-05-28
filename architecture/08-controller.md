@@ -2,7 +2,7 @@
 
 ## Definition
 
-A class translating HTTP requests into application operations. Controllers are **thin adapters** between the HTTP layer and the business logic — they receive the request, hand it to a Form Request (auth), a Data class (validation), and an Action or Query (operation), then format the response.
+A class translating HTTP requests into application operations. Controllers are **thin adapters** between the HTTP layer and the business logic — they receive the FormRequest, construct a DTO from validated data, hand it to an Action or Query, then wrap the result in a JsonResource for output.
 
 ## Keywords
 
@@ -10,16 +10,17 @@ HTTP adapter • Endpoint • Route handler • Entry point
 
 ## Purpose
 
-To handle the HTTP protocol concerns (status codes, response format, headers) and to wire HTTP inputs to the right business operation. Controllers are *not* where business logic lives.
+To handle HTTP protocol concerns (status codes, response format, headers) and to wire HTTP inputs to the right business operation. Controllers are *not* where business logic lives.
 
 ## Rules
 
-1. Controllers contain **no business logic**, **no query building**, **no validation beyond DI**.
-2. Each method is 1–5 lines (after parameter declarations).
-3. Dependencies, Form Requests, Data classes, Actions, and Queries are received via method-level dependency injection.
-4. Return responses via Data classes (auto-serialized) or Laravel's response helpers.
-5. Resource controllers are preferred for standard CRUD (`index`, `show`, `store`, `update`, `destroy`); single-action invokable controllers for non-CRUD endpoints.
-6. **`final` by default.**
+1. Controllers contain **no business logic**, **no query building**, **no validation rules**.
+2. Each method is 3–6 lines.
+3. Dependencies (FormRequests, Actions, Queries) received via method-level dependency injection.
+4. DTOs constructed inside the controller via `XDto::from($request->validated())`.
+5. Responses returned via `new XResource(...)` or `XResource::collection(...)`, or via Laravel's response helpers for non-Resource responses (downloads, redirects, no-content).
+6. Resource controllers preferred for standard CRUD; single-action invokable controllers for non-CRUD endpoints.
+7. **`final` by default.**
 
 ## Shape
 
@@ -51,18 +52,23 @@ final class {VerbObject}Controller
 ## Parameters
 
 Method-level DI for each handler:
-- **Form Request** for write endpoints (authorization)
-- **Data class** for input validation + typed data
-- **Filter Data class** for read endpoints (`OrderFilters`)
+- **FormRequest** for write endpoints (authorize + validate)
+- **`Request`** (base) for read endpoints with query parameters
 - **Route-bound models** (`Order $order`)
 - **Action / Query** for the operation
-- **Other Services** if directly needed (rare; usually go through Action)
+
+DTOs are **constructed inside the method body**, not injected:
+
+```php
+$dto = CreateOrderDto::from($request->validated());
+```
 
 ## Returns
 
-- A Data class instance (serializes to JSON automatically)
-- `Illuminate\Http\JsonResponse` for non-Data responses
+- A JsonResource: `new XResource($model)` or `XResource::collection($items)`
+- `Illuminate\Http\JsonResponse` for non-Resource JSON
 - A redirect, view (Inertia), or download response for browser flows
+- `response()->noContent()` for DELETE endpoints
 
 ## Is it `final`?
 
@@ -70,26 +76,29 @@ Method-level DI for each handler:
 
 ## When to use
 
-- One controller per resource for standard CRUD
-- One invokable controller per non-CRUD endpoint (e.g., `MarkOrderAsShippedController`)
-- Webhook handlers (also invokable)
+- One Resource controller per HTTP resource for standard CRUD
+- One invokable controller per non-CRUD endpoint
+- Webhook handlers (invokable)
 
 ## When NOT to use
 
 - For business logic — that goes in an Action or Query
 - For complex query building — that goes in a Query
 - For multi-step orchestration — that's an Action's job
+- For shaping output — that's a Resource's job
+- For validation rules — that's a FormRequest's job
 
 ## Lifecycle
 
 1. Request matches a route
 2. Route resolves to controller method
 3. Method-level DI runs:
-   a. Form Request boots → `authorize()` → throws 403 if denied
-   b. Data class is resolved + validated → throws 422 if invalid
-   c. Other dependencies injected
-4. Controller method runs (a few lines)
-5. Returns response
+   a. FormRequest constructed → `prepareForValidation()` → `authorize()` → `rules()`
+   b. Route models resolved (`Order $order` triggers DB lookup)
+   c. Other dependencies (Actions, Queries) injected
+4. Controller method body runs (a few lines)
+5. Returns Resource → Laravel serializes to JSON
+6. Response sent
 
 ## What controls it
 
@@ -100,40 +109,52 @@ Method-level DI for each handler:
 
 ## Examples
 
-### Resource controller
+### Standard Resource controller
 
 ```php
 namespace App\Http\Controllers;
 
 use App\Actions\Orders\PlaceOrder;
+use App\Actions\Orders\UpdateOrder;
 use App\Actions\Orders\CancelOrder;
-use App\Data\Orders\CreateOrderData;
-use App\Data\Orders\OrderData;
-use App\Data\Orders\OrderFilters;
-use App\Http\Requests\StoreOrderRequest;
-use App\Http\Requests\DestroyOrderRequest;
+use App\Data\Orders\CreateOrderDto;
+use App\Data\Orders\UpdateOrderDto;
+use App\Data\Orders\OrderFiltersDto;
+use App\Http\Requests\Orders\StoreOrderRequest;
+use App\Http\Requests\Orders\UpdateOrderRequest;
+use App\Http\Requests\Orders\DestroyOrderRequest;
+use App\Http\Resources\OrderResource;
 use App\Models\Order\Order;
 use App\Queries\Orders\ListUserOrdersQuery;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Http\Request;
 
 final class OrderController
 {
-    public function index(OrderFilters $filters, ListUserOrdersQuery $query)
+    public function index(Request $request, ListUserOrdersQuery $query)
     {
-        return OrderData::collect(
-            $query->handle(Auth::user(), $filters)
+        $filters = OrderFiltersDto::from($request->query());
+        return OrderResource::collection(
+            $query->handle($request->user(), $filters)
         );
     }
 
     public function show(Order $order)
     {
-        return OrderData::from($order);
+        return new OrderResource($order->load('items'));
     }
 
-    public function store(StoreOrderRequest $request, CreateOrderData $data, PlaceOrder $action)
+    public function store(StoreOrderRequest $request, PlaceOrder $action)
     {
-        $order = $action->handle($data);
-        return OrderData::from($order);
+        $dto = CreateOrderDto::from($request->validated());
+        $order = $action->handle($dto);
+        return new OrderResource($order->load('items'));
+    }
+
+    public function update(UpdateOrderRequest $request, Order $order, UpdateOrder $action)
+    {
+        $dto = UpdateOrderDto::from($request->validated());
+        $order = $action->handle($order, $dto);
+        return new OrderResource($order->load('items'));
     }
 
     public function destroy(DestroyOrderRequest $request, Order $order, CancelOrder $action)
@@ -150,9 +171,9 @@ final class OrderController
 namespace App\Http\Controllers\Orders;
 
 use App\Actions\Orders\MarkOrderAsShipped;
-use App\Data\Orders\OrderData;
-use App\Data\Orders\ShipOrderData;
-use App\Http\Requests\ShipOrderRequest;
+use App\Data\Orders\ShipOrderDto;
+use App\Http\Requests\Orders\ShipOrderRequest;
+use App\Http\Resources\OrderResource;
 use App\Models\Order\Order;
 
 final class MarkOrderAsShippedController
@@ -160,11 +181,11 @@ final class MarkOrderAsShippedController
     public function __invoke(
         ShipOrderRequest $request,
         Order $order,
-        ShipOrderData $data,
         MarkOrderAsShipped $action,
     ) {
-        $order = $action->handle($order, $data->tracking_number);
-        return OrderData::from($order);
+        $dto = ShipOrderDto::from($request->validated());
+        $order = $action->handle($order, $dto);
+        return new OrderResource($order);
     }
 }
 ```
@@ -176,50 +197,50 @@ Route::resource('orders', OrderController::class);
 Route::post('orders/{order}/ship', MarkOrderAsShippedController::class);
 ```
 
-## Anti-examples
+### Per-field-group update controller
 
-### ❌ Business logic in controller
+When updating distinct slices of a resource through separate endpoints:
 
 ```php
-public function store(Request $request)
+namespace App\Http\Controllers;
+
+use App\Actions\Users\UpdateUserName;
+use App\Actions\Users\UpdateUserEmail;
+use App\Actions\Users\UpdateUserAddress;
+use App\Data\Users\UpdateUserNameDto;
+use App\Data\Users\UpdateUserEmailDto;
+use App\Data\Users\UpdateUserAddressDto;
+use App\Http\Requests\Users\UpdateUserNameRequest;
+use App\Http\Requests\Users\UpdateUserEmailRequest;
+use App\Http\Requests\Users\UpdateUserAddressRequest;
+use App\Http\Resources\UserResource;
+
+final class ProfileController
 {
-    $request->validate([...]);
-    $order = Order::create($request->all());
-    $order->items()->createMany($request->items);
-    Sms::send($request->phone, 'Order placed');
-    Mail::to($request->email)->send(new OrderConfirmation($order));
-    return $order;
+    public function updateName(UpdateUserNameRequest $request, UpdateUserName $action)
+    {
+        $dto = UpdateUserNameDto::from($request->validated());
+        return new UserResource($action->handle($request->user(), $dto));
+    }
+
+    public function updateEmail(UpdateUserEmailRequest $request, UpdateUserEmail $action)
+    {
+        $dto = UpdateUserEmailDto::from($request->validated());
+        return new UserResource($action->handle($request->user(), $dto));
+    }
+
+    public function updateAddress(UpdateUserAddressRequest $request, UpdateUserAddress $action)
+    {
+        $dto = UpdateUserAddressDto::from($request->validated());
+        return new UserResource($action->handle($request->user(), $dto));
+    }
 }
 ```
 
-Validation, persistence, side effects, all inline. Extract to Form Request + Data class + Action + Listeners.
-
-### ❌ Query building in controller
+Routes:
 
 ```php
-public function index(Request $request)
-{
-    $query = Order::query();
-    if ($request->status) $query->where('status', $request->status);
-    if ($request->search) $query->where('name', 'like', "%{$request->search}%");
-    // ...20 more lines
-    return $query->paginate();
-}
+Route::patch('/profile/name', [ProfileController::class, 'updateName']);
+Route::patch('/profile/email', [ProfileController::class, 'updateEmail']);
+Route::patch('/profile/address', [ProfileController::class, 'updateAddress']);
 ```
-
-Extract to a Query class.
-
-### ❌ Controllers with many unrelated methods
-
-```php
-final class HomeController
-{
-    public function index() {}
-    public function dashboard() {}
-    public function settings() {}
-    public function notifications() {}
-    public function billing() {}
-}
-```
-
-Group by resource, not by page. If endpoints don't share a resource, use invokable controllers.

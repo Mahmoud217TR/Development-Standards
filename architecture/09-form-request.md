@@ -2,24 +2,27 @@
 
 ## Definition
 
-A Laravel class that handles **authorization** for a specific endpoint. In this team's convention, Form Requests do NOT handle validation — that lives in Data classes. Form Requests exist purely to centralize the question "is this user allowed to do this?"
+A Laravel class that handles **authorization** and **validation** for a specific HTTP endpoint. FormRequests are the gatekeepers of write endpoints — they decide whether the user is allowed to perform the operation and whether the input is well-formed before the controller runs.
 
 ## Keywords
 
-Authorization gate • Permission check • Endpoint policy
+Validation • Authorization • Endpoint gate • Input contract
 
 ## Purpose
 
-To separate "are you allowed to do this?" from "is your input shaped correctly?" — the former is endpoint-specific business policy, the latter is data shape. Keeping them separate makes both clearer.
+To centralize per-endpoint input rules and access control in one declarative class. Controllers stay thin; validation and auth never leak into Actions; rules are reusable, testable, and discoverable.
 
 ## Rules
 
-1. Every write endpoint has a Form Request.
-2. `authorize()` returns `true` if the request is allowed, `false` (or throws) otherwise.
-3. **No `rules()` method.** Validation lives in Data classes.
-4. No business logic. `authorize()` may call Policies, but the decision must be a simple "allowed/not allowed."
-5. **`final` by default.**
-6. Name reflects the operation: `StoreOrderRequest`, `UpdateOrderRequest`, `DestroyOrderRequest`, `ShipOrderRequest`.
+1. **Every write endpoint has a FormRequest.**
+2. `authorize()` returns `true` if the request is allowed, `false` otherwise. Cannot perform side effects.
+3. `rules()` returns validation rules. Mandatory for write endpoints.
+4. `messages()` returns custom error messages (optional, but encouraged for user-facing endpoints).
+5. `prepareForValidation()` may transform inputs before validation (e.g., trim, normalize phone format).
+6. `withValidator()` may attach after-validation hooks for cross-field rules that don't fit standard rules.
+7. No business logic in FormRequests. Auth check is allowed to query the DB/policies; it must remain a yes/no decision with no state changes.
+8. **`final` by default.**
+9. Naming: `{Verb}{Object}Request` — `StoreOrderRequest`, `UpdateOrderRequest`, `UpdateUserEmailRequest`, `DestroyOrderRequest`.
 
 ## Shape
 
@@ -32,16 +35,32 @@ final class {Verb}{Object}Request extends FormRequest
     {
         return /* permission check */;
     }
+
+    public function rules(): array
+    {
+        return [
+            /* validation rules */
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            /* custom messages */
+        ];
+    }
 }
 ```
 
 ## Parameters
 
-N/A — Form Requests are injected by Laravel, not called.
+N/A — FormRequests are injected by Laravel, not called directly.
 
 ## Returns
 
-`authorize()` returns `bool`. `false` causes Laravel to throw a 403.
+- `authorize()` returns `bool`. `false` → 403.
+- `rules()` returns `array`. Validation failures → 422.
+- `validated()` (called by the controller) returns the clean validated array.
 
 ## Is it `final`?
 
@@ -50,36 +69,39 @@ N/A — Form Requests are injected by Laravel, not called.
 ## When to use
 
 - Any HTTP write endpoint (POST, PUT, PATCH, DELETE)
-- Any read endpoint where access is restricted (e.g., admin-only)
-- Endpoints with non-trivial auth logic that benefits from being named and reusable
+- Any read endpoint with restricted access (admin-only listings, for example) — though many read endpoints don't need a FormRequest
+- Endpoints where input shape and access policy are both worth naming
 
 ## When NOT to use
 
-- For validation — use Data classes
-- For unauthenticated public endpoints with no access control — skip
+- For routing or HTTP semantics — that's controller territory
+- For business logic — that's an Action's job
+- For output formatting — that's a Resource
 - Inside Actions, Queries, Jobs — those don't deal with HTTP
 
 ## Lifecycle
 
 1. Request matches route
 2. Controller method is resolved
-3. Form Request parameter triggers Laravel to construct it
-4. `authorize()` runs
-5. If `false` → 403 response, controller never runs
-6. If `true` → control passes to the next injected dependency (typically the Data class)
+3. FormRequest parameter triggers Laravel to construct it
+4. `prepareForValidation()` runs (optional input transformation)
+5. `authorize()` runs → 403 response if `false`
+6. `rules()` evaluated against the input → 422 response if any rule fails
+7. `withValidator()` hooks run (cross-field validation)
+8. Controller method receives the FormRequest with validated data accessible via `$request->validated()`
 
 ## What controls it
 
 - **Triggered by:** controller method declaring it as a parameter
-- **Configured by:** override of `authorize()`, optionally `failedAuthorization()` for custom responses
+- **Configured by:** overrides of `authorize()`, `rules()`, `messages()`, `prepareForValidation()`, `withValidator()`
 - **May delegate to:** Laravel Policies (`$this->user()->can('update', $this->route('order'))`)
 
 ## Examples
 
-### Basic authorization
+### Standard write FormRequest
 
 ```php
-namespace App\Http\Requests;
+namespace App\Http\Requests\Orders;
 
 use App\Models\Order\Order;
 use Illuminate\Foundation\Http\FormRequest;
@@ -90,95 +112,131 @@ final class StoreOrderRequest extends FormRequest
     {
         return $this->user()?->can('create', Order::class) ?? false;
     }
+
+    public function rules(): array
+    {
+        return [
+            'customer_name' => ['required', 'string', 'max:100'],
+            'phone' => ['required', 'string', 'regex:/^09\d{8}$/'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.product_id' => ['required', 'integer', 'exists:products,id'],
+            'items.*.quantity' => ['required', 'integer', 'min:1'],
+            'notes' => ['nullable', 'string', 'max:500'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'phone.regex' => 'Phone must start with 09 and be 10 digits.',
+            'items.required' => 'Order must contain at least one item.',
+        ];
+    }
 }
 ```
 
-### Authorization with route model
+### Per-field-group update FormRequest
+
+```php
+namespace App\Http\Requests\Users;
+
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
+
+final class UpdateUserEmailRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        return $this->user() !== null;
+    }
+
+    public function rules(): array
+    {
+        return [
+            'email' => [
+                'required',
+                'email',
+                'max:255',
+                Rule::unique('users')->ignore($this->user()->id),
+            ],
+            'current_password' => ['required', 'current_password'],
+        ];
+    }
+}
+```
+
+### FormRequest with prepared input
+
+```php
+final class StoreOrderRequest extends FormRequest
+{
+    protected function prepareForValidation(): void
+    {
+        $this->merge([
+            'phone' => str_replace([' ', '-'], '', $this->phone),
+            'customer_name' => trim($this->customer_name),
+        ]);
+    }
+
+    public function authorize(): bool { /* ... */ }
+    public function rules(): array { /* ... */ }
+}
+```
+
+### FormRequest with cross-field validation
+
+```php
+final class StoreOrderRequest extends FormRequest
+{
+    public function rules(): array
+    {
+        return [
+            'items' => ['required', 'array', 'min:1'],
+            // ...
+        ];
+    }
+
+    public function withValidator($validator): void
+    {
+        $validator->after(function ($validator) {
+            $totalQuantity = collect($this->items ?? [])->sum('quantity');
+            if ($totalQuantity > 100) {
+                $validator->errors()->add('items', 'Total quantity exceeds order limit of 100 items.');
+            }
+        });
+    }
+}
+```
+
+### Authorization via Policy with route model
 
 ```php
 final class UpdateOrderRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        $order = $this->route('order');
-        return $this->user()->can('update', $order);
+        return $this->user()->can('update', $this->route('order'));
     }
+
+    public function rules(): array { /* ... */ }
 }
 ```
 
-### Authorization with custom logic
+### Used with a DTO and Action in a controller
 
 ```php
-final class ShipOrderRequest extends FormRequest
+public function store(StoreOrderRequest $request, PlaceOrder $action)
 {
-    public function authorize(): bool
-    {
-        $order = $this->route('order');
-
-        return $this->user()->can('update', $order)
-            && $order->status->canBe(Shipped::class);
-    }
-}
-```
-
-### Used together with Data class
-
-```php
-public function store(
-    StoreOrderRequest $request,    // authorization
-    CreateOrderData $data,          // validation + typed input
-    PlaceOrder $action,             // operation
-) {
-    $order = $action->handle($data);
-    return OrderData::from($order);
+    $dto = CreateOrderDto::from($request->validated());
+    $order = $action->handle($dto);
+    return new OrderResource($order);
 }
 ```
 
 Order of operations:
-1. `StoreOrderRequest::authorize()` runs → 403 if not allowed
-2. `CreateOrderData` validates → 422 if invalid
-3. Controller body runs
-
-## Anti-examples
-
-### ❌ Validation rules in Form Request
-
-```php
-final class StoreOrderRequest extends FormRequest
-{
-    public function authorize(): bool { return true; }
-
-    public function rules(): array
-    {
-        return ['customer_name' => 'required|string'];   // ❌ validation here
-    }
-}
-```
-
-Validation is the Data class's job. Form Requests handle authorization only.
-
-### ❌ Business logic in `authorize()`
-
-```php
-public function authorize(): bool
-{
-    $order = $this->route('order');
-    if ($order->status === 'shipped') {
-        $order->update(['notified' => true]);   // ❌ side effect
-    }
-    return $this->user()->can('view', $order);
-}
-```
-
-`authorize()` is a pure check. No state changes.
-
-### ❌ `authorize()` returning `true` by default
-
-```php
-public function authorize(): bool
-{
-    return true;
-}
-```
-
-If there's no auth check, skip the Form Request entirely. Returning `true` is misleading — it suggests the question was considered when it wasn't.
+1. `StoreOrderRequest::authorize()` → 403 if not allowed
+2. `StoreOrderRequest` validation runs → 422 if invalid
+3. `$request->validated()` returns the clean array
+4. `CreateOrderDto::from(...)` produces a typed DTO
+5. Action runs with the DTO
+6. Controller wraps the result in a Resource

@@ -1,4 +1,4 @@
-# Laravel Team Standards
+# Team Development Standards
 
 A comprehensive, opinionated guide for building Laravel applications across all team projects. These rules are **strict, must-follow standards** — deviations require justification.
 
@@ -10,14 +10,9 @@ Build a single source of truth for how the team writes Laravel. The goal is to e
 
 Every Laravel project adopts this baseline:
 
-### PHP & Framework
-- PHP 8.3+
-- Laravel 11+
-
 ### Core packages
-- `spatie/laravel-data` — input validation, output serialization, DTOs, TypeScript generation
+- `spatie/laravel-data` — used as DTO transport layer (typed `::from()` hydration). Validation attributes NOT used (validation lives in FormRequests).
 - `spatie/laravel-model-states` — state machines for entities with non-trivial status flows
-- `spatie/laravel-typescript-transformer` — auto-generate TS types from Data classes
 
 ### Code quality (CI-enforced)
 - `laravel/pint` — formatter (Laravel preset)
@@ -58,15 +53,13 @@ Every Laravel project adopts this baseline:
 
 ## Architecture Reference
 
-The [`architecture/`](./architecture/) folder contains a deep reference for each architectural building block — definitions, rules, signatures, and examples. Start with [`architecture/README.md`](./architecture/README.md).
+The [`architecture/`](./architecture/) folder contains a deep reference for each architectural building block. Start with [`architecture/README.md`](./architecture/README.md).
 
 ## Progress Tracker
 
 **Current step:** Section 9 (Testing) — 8 open questions awaiting decisions.
 
 **Next sections after 9:** 10 → 11 → 12 → 13 → 14 → 15.
-
-**How to use this tracker:** When a section is locked, its status moves to ✅ and the file is finalized. In-progress sections track open questions inside their own file.
 
 ## Conventions for this Guide
 
