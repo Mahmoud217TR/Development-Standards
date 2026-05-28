@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Laravel Request / Response &amp; Architecture Map</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Spline+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --navy: #16244a;
+    --navy-soft: #1f3163;
+    --ink: #2a2f3a;
+    --muted: #6b7280;
+    --paper: #f6f4ee;
+    --card: #ffffff;
+
+    --write: #2f5fb0;       --write-bg: #eaf1fb;   --write-ink: #1b3d75;
+    --read: #2f8f63;        --read-bg: #e7f4ec;    --read-ink: #1c5d3f;
+    --async: #6b4bc4;       --async-bg: #efeafb;   --async-ink: #432c8a;
+    --event: #d99016;       --event-bg: #fbf1dd;   --event-ink: #8a5a0c;
+    --danger: #cf4444;      --danger-bg: #fbe9e9;
+    --model: #5a6473;       --model-bg: #eceef1;   --model-ink: #353d49;
+    --service:#c4612f;      --service-bg:#fbeee4;  --service-ink:#8a4019;
+
+    --line: #d9d5c9;
+    --radius: 12px;
+    --shadow: 0 1px 2px rgba(22,36,74,.06), 0 8px 24px rgba(22,36,74,.05);
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Spline Sans', sans-serif;
+    line-height: 1.5;
+    padding: 32px;
+  }
+  .poster { max-width: 1400px; margin: 0 auto; }
+
+  header { text-align: center; margin-bottom: 28px; }
+  header h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 700;
+    font-size: 42px;
+    letter-spacing: -0.02em;
+    color: var(--navy);
+    margin: 0 0 6px;
+  }
+  header p {
+    font-size: 15px; color: var(--muted); margin: 0;
+    text-transform: uppercase; letter-spacing: 0.18em; font-weight: 500;
+  }
+  .rule {
+    height: 3px; width: 80px; margin: 14px auto 0;
+    background: linear-gradient(90deg, var(--write), var(--read), var(--async));
+    border-radius: 2px;
+  }
+
+  .columns {
+    display: grid;
+    grid-template-columns: 1.18fr 0.92fr 1fr;
+    gap: 18px;
+    align-items: start;
+  }
+
+  .col { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+  .col-head {
+    padding: 13px 18px; color: #fff; display: flex; align-items: center; gap: 11px;
+    font-weight: 600; font-size: 16px; letter-spacing: 0.01em;
+  }
+  .col-head .num {
+    width: 26px; height: 26px; border-radius: 50%; background: rgba(255,255,255,.22);
+    display: grid; place-items: center; font-size: 14px; font-weight: 700; flex-shrink: 0;
+  }
+  .col-head small { font-weight: 400; opacity: .82; font-size: 13px; margin-left: 2px; }
+  .col.write .col-head { background: var(--write); }
+  .col.read .col-head { background: var(--read); }
+  .col.async .col-head { background: var(--async); }
+  .col-body { padding: 18px 16px 20px; }
+
+  .node {
+    border-radius: 10px; padding: 11px 13px; margin: 0 auto;
+    border: 1.5px solid; position: relative; background: var(--card);
+  }
+  .node + .node-wrap, .node-wrap + .node-wrap { margin-top: 0; }
+  .node .label { font-weight: 600; font-size: 14.5px; display: flex; align-items: center; gap: 8px; }
+  .node .sub { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+  .node .ico { font-size: 15px; line-height: 1; }
+
+  .n-write  { border-color: var(--write);  background: var(--write-bg); }
+  .n-write .label { color: var(--write-ink); }
+  .n-read   { border-color: var(--read);   background: var(--read-bg); }
+  .n-read .label { color: var(--read-ink); }
+  .n-async  { border-color: var(--async);  background: var(--async-bg); }
+  .n-async .label { color: var(--async-ink); }
+  .n-event  { border-color: var(--event);  background: var(--event-bg); }
+  .n-event .label { color: var(--event-ink); }
+  .n-model  { border-color: var(--model);  background: var(--model-bg); }
+  .n-model .label { color: var(--model-ink); }
+  .n-service{ border-color: var(--service);background: var(--service-bg); }
+  .n-service .label { color: var(--service-ink); }
+  .n-plain  { border-color: var(--line);   background: #fbfaf7; }
+  .n-plain .label { color: var(--ink); }
+
+  .steps { list-style: none; margin: 8px 0 0; padding: 0; }
+  .steps li {
+    font-size: 12.3px; color: var(--ink); padding: 3px 0 3px 26px; position: relative; line-height: 1.45;
+  }
+  .steps li .s {
+    position: absolute; left: 0; top: 3px; width: 17px; height: 17px; border-radius: 50%;
+    background: var(--write); color: #fff; font-size: 10.5px; font-weight: 700;
+    display: grid; place-items: center;
+  }
+  .steps.read li .s { background: var(--read); }
+  .steps li code, .mono { font-family: 'JetBrains Mono', monospace; font-size: 11.5px; }
+  .steps li code { background: rgba(47,95,176,.09); padding: 1px 5px; border-radius: 4px; color: var(--write-ink); }
+  .steps.read li code { background: rgba(47,143,99,.1); color: var(--read-ink); }
+
+  .conn { display: flex; flex-direction: column; align-items: center; color: var(--muted); }
+  .conn .arrow { width: 2px; height: 16px; background: var(--ink); position: relative; opacity: .55; }
+  .conn .arrow::after {
+    content: ''; position: absolute; bottom: -1px; left: 50%; transform: translateX(-50%);
+    border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid var(--ink);
+  }
+  .conn .tag { font-size: 11px; font-style: italic; color: var(--muted); margin: 2px 0; }
+
+  .branch-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 0; }
+  .dots { text-align: center; color: var(--async); font-weight: 700; font-size: 18px; letter-spacing: 2px; margin: 6px 0; }
+
+  .exception-note {
+    margin-top: 14px; border: 1.5px dashed var(--danger); background: var(--danger-bg);
+    border-radius: 10px; padding: 10px 12px; font-size: 12.3px; color: #8f2b2b;
+  }
+  .exception-note b { color: var(--danger); }
+
+  .callout {
+    border-radius: 10px; padding: 10px 12px; font-size: 12.5px; margin-bottom: 12px;
+    border: 1.5px solid var(--event); background: var(--event-bg); color: var(--event-ink);
+  }
+  .callout.async-c { border-color: var(--async); background: var(--async-bg); color: var(--async-ink); }
+  .callout b { font-weight: 600; }
+
+  /* bottom panels */
+  .panels { display: grid; grid-template-columns: 1.25fr 1fr 0.9fr; gap: 18px; margin-top: 22px; }
+  .panel { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+  .panel-head { background: var(--navy); color: #fff; text-align: center; font-weight: 600; font-size: 14px; padding: 9px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .panel-body { padding: 14px 16px; }
+
+  .rules { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 16px; }
+  .rules div { font-size: 12.6px; padding-left: 22px; position: relative; line-height: 1.4; }
+  .rules div::before {
+    content: '\2713'; position: absolute; left: 0; top: 0; color: var(--read);
+    font-weight: 700; font-size: 13px;
+  }
+
+  .interactions { font-size: 12.8px; }
+  .interactions .ir { display: grid; grid-template-columns: 92px 16px 1fr; align-items: center; gap: 6px; padding: 4px 0; border-bottom: 1px solid var(--line); }
+  .interactions .ir:last-child { border-bottom: none; }
+  .interactions .from { font-weight: 600; }
+  .interactions .arrowtxt { color: var(--muted); }
+  .ir.c1 .from { color: var(--write); }
+  .ir.c2 .from { color: var(--read); }
+  .ir.c3 .from { color: var(--async); }
+  .ir.c4 .from { color: var(--service-ink); }
+  .ir.c5 .from { color: var(--event-ink); }
+
+  .legend { font-size: 12.6px; display: grid; gap: 7px; }
+  .legend .li { display: flex; align-items: center; gap: 9px; }
+  .legend .sw { width: 26px; height: 14px; border-radius: 4px; border: 1.5px solid; flex-shrink: 0; }
+  .legend .ln { width: 26px; height: 0; flex-shrink: 0; border-top-width: 2px; border-top-style: solid; position: relative; }
+  .legend .ln.dash { border-top-style: dashed; }
+
+  footer { text-align: center; margin-top: 22px; font-size: 12px; color: var(--muted); }
+  footer code { font-family: 'JetBrains Mono', monospace; }
+
+  @media print {
+    body { padding: 0; background: #fff; }
+    .col, .panel { box-shadow: none; border: 1px solid var(--line); }
+    @page { size: A2 landscape; margin: 12mm; }
+  }
+</style>
+</head>
+<body>
+<div class="poster">
+  <header>
+    <h1>Laravel Request / Response &amp; Architecture Map</h1>
+    <p>Development Standards &middot; how the pieces fit</p>
+    <div class="rule"></div>
+  </header>
+
+  <div class="columns">
+
+    <!-- ============ COLUMN 1 — WRITE ============ -->
+    <section class="col write">
+      <div class="col-head"><span class="num">1</span> HTTP boundary &amp; write flow <small>— primary path</small></div>
+      <div class="col-body">
+
+        <div class="node n-plain"><div class="label"><span class="ico">&#128421;</span> Client / HTTP request</div><div class="sub">Browser, mobile app, or webhook</div></div>
+        <div class="conn"><div class="arrow"></div></div>
+
+        <div class="node n-plain"><div class="label"><span class="ico">&#128506;</span> Router</div><div class="sub">Resolves URL &rarr; Controller@method</div></div>
+        <div class="conn"><div class="arrow"></div></div>
+
+        <div class="node n-write">
+          <div class="label"><span class="ico">&#128203;</span> FormRequest</div>
+          <div class="sub">app/Http/Requests/ &middot; authorize + validate</div>
+          <ul class="steps">
+            <li><span class="s">1</span> <code>prepareForValidation()</code> — optional</li>
+            <li><span class="s">2</span> <code>authorize()</code> &rarr; 403 if denied</li>
+            <li><span class="s">3</span> <code>rules()</code> &rarr; 422 if invalid</li>
+            <li><span class="s">4</span> <code>withValidator()</code> after-hooks — optional</li>
+          </ul>
+        </div>
+        <div class="conn"><div class="arrow"></div></div>
+
+        <div class="node n-write">
+          <div class="label"><span class="ico">&#129518;</span> Controller</div>
+          <div class="sub">thin — 3 to 6 lines</div>
+          <ul class="steps">
+            <li><span class="s">1</span> build DTO: <code>Dto::from($request-&gt;validated())</code></li>
+            <li><span class="s">2</span> invoke <code>$action-&gt;handle($dto)</code></li>
+            <li><span class="s">3</span> wrap result in a JsonResource</li>
+          </ul>
+        </div>
+        <div class="conn"><div class="tag">builds &amp; passes</div><div class="arrow"></div></div>
+
+        <div class="node n-write"><div class="label"><span class="ico">&#128230;</span> DTO</div><div class="sub">app/Data/ &middot; final &middot; readonly &middot; <b>no validation</b></div></div>
+        <div class="conn"><div class="arrow"></div></div>
+
+        <div class="node n-read" style="border-color:var(--read);background:var(--read-bg)">
+          <div class="label" style="color:var(--read-ink)"><span class="ico">&#9881;&#65039;</span> Action <span style="font-weight:400;color:var(--muted);font-size:12px">— write use case &middot; final</span></div>
+          <ul class="steps read">
+            <li><span class="s">1</span> preconditions &rarr; throw domain exception</li>
+            <li><span class="s">2</span> <code>DB::transaction</code> opens</li>
+            <li><span class="s">3</span> call Services / Queries / sub-Actions</li>
+            <li><span class="s">4</span> persist via Eloquent Models</li>
+            <li><span class="s">5</span> sync work the response needs</li>
+            <li><span class="s">6</span> transaction commits</li>
+            <li><span class="s">7</span> fire Event &middot; return Model / result</li>
+          </ul>
+        </div>
+
+        <div class="branch-row" style="margin-top:12px">
+          <div class="node n-service"><div class="label"><span class="ico">&#9993;&#65039;</span> Service</div><div class="sub">SMS, Stripe, PDF — capability wrapper</div></div>
+          <div class="node n-model"><div class="label"><span class="ico">&#128451;</span> Model</div><div class="sub">data shape + boot() plumbing</div></div>
+        </div>
+
+        <div class="conn" style="margin-top:12px"><div class="tag">result returned</div><div class="arrow"></div></div>
+
+        <div class="node n-write"><div class="label"><span class="ico">{ }</span> JsonResource</div><div class="sub">app/Http/Resources/ &middot; Model &rarr; JSON output</div></div>
+        <div class="conn"><div class="arrow"></div></div>
+
+        <div class="node n-plain"><div class="label"><span class="ico">&#128424;&#65039;</span> HTTP response</div><div class="sub">Serialized JSON back to client</div></div>
+
+        <div class="exception-note">
+          <b>&#9888; Exceptions</b> at any step bubble up — never caught here. They reach the <span class="mono">bootstrap/app.php</span> handler (column 2).
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ COLUMN 2 — READ ============ -->
+    <section class="col read">
+      <div class="col-head"><span class="num">2</span> Read flow <small>— query path</small></div>
+      <div class="col-body">
+
+        <div class="node n-plain"><div class="label"><span class="ico">&#128421;</span> Client / HTTP request</div><div class="sub">GET with query parameters</div></div>
+        <div class="conn"><div class="arrow"></div></div>
+
+        <div class="node n-read"><div class="label"><span class="ico">&#129518;</span> Controller</div><div class="sub">thin HTTP adapter</div></div>
+        <div class="conn"><div class="tag">builds</div><div class="arrow"></div></div>
+
+        <div class="node n-read"><div class="label"><span class="ico">&#128290;</span> FiltersDto</div><div class="sub">query params &rarr; typed DTO</div></div>
+        <div class="conn"><div class="arrow"></div></div>
+
+        <div class="node n-read">
+          <div class="label"><span class="ico">&#128269;</span> Query</div>
+          <div class="sub">read use case &middot; final &middot; <b>no side effects</b></div>
+          <ul class="steps read">
+            <li><span class="s">&bull;</span> filtering, joins, aggregation</li>
+            <li><span class="s">&bull;</span> security scoping baked in</li>
+            <li><span class="s">&bull;</span> returns models, paginator, or DTO</li>
+          </ul>
+        </div>
+        <div class="conn"><div class="tag">may use</div><div class="arrow"></div></div>
+
+        <div class="node n-service"><div class="label"><span class="ico">&#9881;&#65039;</span> Service <span style="font-weight:400;color:var(--muted);font-size:11.5px">(optional)</span></div><div class="sub">search index / external read source</div></div>
+        <div class="conn"><div class="arrow"></div></div>
+
+        <div class="node n-model"><div class="label"><span class="ico">&#128451;</span> Models / collections</div><div class="sub">Eloquent — the data access layer</div></div>
+        <div class="conn"><div class="arrow"></div></div>
+
+        <div class="node n-read"><div class="label"><span class="ico">{ }</span> JsonResource::collection</div><div class="sub">output serialization + pagination meta</div></div>
+        <div class="conn"><div class="arrow"></div></div>
+
+        <div class="node n-plain"><div class="label"><span class="ico">&#128424;&#65039;</span> HTTP response</div><div class="sub">Serialized JSON to client</div></div>
+
+        <div style="margin-top:18px">
+          <div class="node n-plain" style="border-color:var(--danger);background:var(--danger-bg)">
+            <div class="label" style="color:#8f2b2b"><span class="ico">&#9888;&#65039;</span> Exception handler</div>
+            <div class="sub" style="color:#8f2b2b">bootstrap/app.php — catches everything that escapes both flows</div>
+          </div>
+          <div class="conn"><div class="arrow"></div></div>
+          <div class="node n-plain" style="border-color:var(--danger);background:#fff">
+            <div class="label" style="color:#8f2b2b"><span class="ico">&#128202;</span> Translate &amp; report</div>
+            <div class="sub">domain exception &rarr; HTTP status (422/409/402&hellip;) &middot; report infra errors to monitoring</div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============ COLUMN 3 — ASYNC ============ -->
+    <section class="col async">
+      <div class="col-head"><span class="num">3</span> Async &amp; side-effect flow</div>
+      <div class="col-body">
+
+        <div class="callout">
+          Branches from an Action <b>after the transaction commits</b>, and from Jobs that fire their own Events.
+        </div>
+
+        <div class="node n-event"><div class="label"><span class="ico">&#9889;</span> Event</div><div class="sub">immutable past-tense fact &middot; <span class="mono">event(new &hellip;)</span></div></div>
+        <div class="conn"><div class="arrow"></div></div>
+
+        <div class="branch-row">
+          <div class="node n-event"><div class="label" style="font-size:13px"><span class="ico">&#128068;</span> Listener</div><div class="sub">queued &middot; one reaction</div></div>
+          <div class="node n-event"><div class="label" style="font-size:13px"><span class="ico">&#128068;</span> Listener</div><div class="sub">queued &middot; one reaction</div></div>
+        </div>
+        <div class="dots">&middot; &middot; &middot;</div>
+
+        <div class="branch-row">
+          <div class="node n-service"><div class="label" style="font-size:13px"><span class="ico">&#9993;&#65039;</span> SmsService</div><div class="sub">notify customer</div></div>
+          <div class="node n-service"><div class="label" style="font-size:13px"><span class="ico">&#128225;</span> WebhookService</div><div class="sub">notify merchant</div></div>
+        </div>
+
+        <div class="callout async-c" style="margin-top:18px">
+          <b>Job</b> = deferred / async work on a queue. Actions dispatch Jobs directly only for <b>delayed, scheduled, chained, or batched</b> work.
+        </div>
+
+        <div class="node n-async"><div class="label"><span class="ico">&#128230;</span> Queue</div><div class="sub">Redis / database driver</div></div>
+        <div class="conn"><div class="arrow"></div></div>
+
+        <div class="node n-async"><div class="label"><span class="ico">&#9881;&#65039;</span> Worker</div><div class="sub">Horizon-monitored</div></div>
+        <div class="conn"><div class="arrow"></div></div>
+
+        <div class="node n-async">
+          <div class="label"><span class="ico">&#127939;</span> Job runs <span class="mono" style="font-weight:400;font-size:11px;color:var(--muted)">handle()</span></div>
+          <ul class="steps">
+            <li style="padding-left:22px"><span class="s" style="background:var(--async)">&bull;</span> runs logic via Service / Model</li>
+            <li style="padding-left:22px"><span class="s" style="background:var(--async)">&bull;</span> may fire its own Event(s)</li>
+            <li style="padding-left:22px"><span class="s" style="background:var(--async)">&bull;</span> retries via <span class="mono">$tries</span> / <span class="mono">$backoff</span></li>
+            <li style="padding-left:22px"><span class="s" style="background:var(--async)">&bull;</span> final failure &rarr; <span class="mono">failed()</span></li>
+          </ul>
+        </div>
+
+        <div class="exception-note" style="border-color:var(--async);background:var(--async-bg);color:var(--async-ink)">
+          Listeners &amp; Jobs <b>never catch</b> inside <span class="mono">handle()</span> — the queue's retry mechanism owns failure.
+        </div>
+
+      </div>
+    </section>
+  </div>
+
+  <!-- ============ BOTTOM PANELS ============ -->
+  <div class="panels">
+
+    <section class="panel">
+      <div class="panel-head">Build rules</div>
+      <div class="panel-body">
+        <div class="rules">
+          <div>Controllers stay thin</div>
+          <div>Output &rarr; JsonResources</div>
+          <div>Writes &rarr; Actions</div>
+          <div>No Repository layer — Eloquent is it</div>
+          <div>Complex reads &rarr; Queries</div>
+          <div>Actions are synchronous</div>
+          <div>External capabilities &rarr; Services</div>
+          <div>Listeners &amp; Jobs handle async</div>
+          <div>Validation + auth &rarr; FormRequests</div>
+          <div>Events fire after commit</div>
+          <div>Transport &rarr; DTOs (no validation)</div>
+          <div>State machines for non-trivial status</div>
+          <div>Everything <span class="mono">final</span> by default</div>
+          <div>Model hooks = boot/booted, no logic</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">Allowed interactions</div>
+      <div class="panel-body interactions">
+        <div class="ir c1"><span class="from">Controller</span><span class="arrowtxt">&rarr;</span><span>FormRequest, DTO, Action, Query, Resource</span></div>
+        <div class="ir c2"><span class="from">Action</span><span class="arrowtxt">&rarr;</span><span>Service, Model, Query, Event, Job, sub-Action</span></div>
+        <div class="ir c3"><span class="from">Query</span><span class="arrowtxt">&rarr;</span><span>Model, Service (read source only)</span></div>
+        <div class="ir c4"><span class="from">Service</span><span class="arrowtxt">&rarr;</span><span>Model, HTTP client, filesystem</span></div>
+        <div class="ir c5"><span class="from">Listener</span><span class="arrowtxt">&rarr;</span><span>Service, Job &middot; (never an Action)</span></div>
+        <div class="ir c3"><span class="from">Job</span><span class="arrowtxt">&rarr;</span><span>Service, Model, Event</span></div>
+        <div class="ir c1"><span class="from">Resource</span><span class="arrowtxt">&rarr;</span><span>output formatting only</span></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">Legend</div>
+      <div class="panel-body">
+        <div class="legend">
+          <div class="li"><span class="sw" style="border-color:var(--write);background:var(--write-bg)"></span> Write-path component</div>
+          <div class="li"><span class="sw" style="border-color:var(--read);background:var(--read-bg)"></span> Read-path component</div>
+          <div class="li"><span class="sw" style="border-color:var(--async);background:var(--async-bg)"></span> Async component</div>
+          <div class="li"><span class="sw" style="border-color:var(--event);background:var(--event-bg)"></span> Event / Job trigger</div>
+          <div class="li"><span class="sw" style="border-color:var(--service);background:var(--service-bg)"></span> Service (capability)</div>
+          <div class="li"><span class="sw" style="border-color:var(--model);background:var(--model-bg)"></span> Model (data)</div>
+          <div class="li"><span class="ln" style="border-color:var(--ink)"></span> Primary flow (sync)</div>
+          <div class="li"><span class="ln dash" style="border-color:var(--danger)"></span> Exception flow</div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <footer>
+    Laravel Team Development Standards &middot; Architecture reference &middot; see <code>architecture/</code> for per-component detail
+  </footer>
+</div>
+</body>
+</html>

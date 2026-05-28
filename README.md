@@ -23,7 +23,9 @@ Every Laravel project adopts this baseline:
 ### Testing
 - `pestphp/pest` — test framework
 - `pestphp/pest-plugin-laravel` — Laravel-specific helpers
-- (additional testing packages TBD in Section 9)
+- Postgres (test database matches production engine)
+- Laravel's built-in fakes (`Http::fake()`, `Event::fake()`, `Queue::fake()`, etc.)
+- Custom `Fake*` Service classes (in `tests/Fakes/`) for vendor-SDK Services
 
 ## Format
 
@@ -42,7 +44,7 @@ Every Laravel project adopts this baseline:
 | 6 | API & frontend integration | ⏭️ Skipped |
 | 7 | Authentication & authorization | ⏭️ Skipped |
 | 8 | Background jobs & scheduling | ⏭️ Skipped |
-| 9 | [Testing strategy](./09-testing-strategy.md) | 🔄 In progress |
+| 9 | [Testing strategy](./09-testing-strategy.md) | ✅ Locked |
 | 10 | [Logging, monitoring & error tracking](./10-logging-monitoring.md) | ⏳ Pending |
 | 11 | [Security practices](./11-security.md) | ⏳ Pending |
 | 12 | [Git workflow & code review](./12-git-workflow.md) | ⏳ Pending |
@@ -57,9 +59,10 @@ The [`architecture/`](./architecture/) folder contains a deep reference for each
 
 ## Progress Tracker
 
-**Current step:** Section 9 (Testing) — 8 open questions awaiting decisions.
+**Current step:** Section 10 (Logging, Monitoring & Error Tracking) is next.
 
-**Next sections after 9:** 10 → 11 → 12 → 13 → 14 → 15.
+**Locked:** Sections 3, 4, 9.
+**Remaining:** 10 → 11 → 12 → 13 → 14 → 15.
 
 ## Conventions for this Guide
 
