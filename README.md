@@ -34,35 +34,39 @@ Every Laravel project adopts this baseline:
 
 ## Contents (Sections)
 
-| # | Section | Status |
-|---|---|---|
-| 1 | Local development environment | ⏭️ Skipped |
-| 2 | Project scaffolding | ⏭️ Skipped |
-| 3 | [Code style & static analysis](./03-code-style-static-analysis.md) | ✅ Locked |
-| 4 | [Architecture patterns](./04-architecture-patterns.md) | ✅ Locked |
-| 5 | Database & Eloquent | ⏭️ Skipped |
-| 6 | API & frontend integration | ⏭️ Skipped |
-| 7 | Authentication & authorization | ⏭️ Skipped |
-| 8 | Background jobs & scheduling | ⏭️ Skipped |
-| 9 | [Testing strategy](./09-testing-strategy.md) | ✅ Locked |
-| 10 | [Logging, monitoring & error tracking](./10-logging-monitoring.md) | ⏳ Pending |
-| 11 | [Security practices](./11-security.md) | ⏳ Pending |
-| 12 | [Git workflow & code review](./12-git-workflow.md) | ⏳ Pending |
-| 13 | [CI/CD pipeline](./13-ci-cd.md) | ⏳ Pending |
-| 14 | [Deployment & infrastructure](./14-deployment.md) | ⏳ Pending |
-| 15 | [Performance & caching](./15-performance-caching.md) | ⏳ Pending |
-| 16 | Documentation & onboarding | ⏭️ Skipped |
+Sections are ordered by **technical priority**, not numerically. Earlier sections influence later ones; the build order respects dependencies.
+
+| Build order | # | Section | Status |
+|---|---|---|---|
+| 1 | 3 | [Code style & static analysis](./03-code-style-static-analysis.md) | ✅ Locked |
+| 2 | 4 | [Architecture patterns](./04-architecture-patterns.md) | ✅ Locked |
+| 3 | 9 | [Testing strategy](./09-testing-strategy.md) | ✅ Locked |
+| 4 | 12 | [Git workflow & code review](./12-git-workflow.md) | ✅ Locked |
+| 5 | 5 | [Database & Eloquent](./05-database-eloquent.md) | ⏳ Pending |
+| 6 | 11 | [Security practices](./11-security.md) | ⏳ Pending |
+| 7 | 7 | [Authentication & authorization](./07-auth.md) | ⏳ Pending |
+| 8 | 10 | [Logging, monitoring & error tracking](./10-logging-monitoring.md) | ⏳ Pending |
+| 9 | 8 | [Background jobs in production](./08-background-jobs.md) | ⏳ Pending |
+| 10 | 13 | [CI/CD pipeline](./13-ci-cd.md) | ⏳ Pending |
+| 11 | 14 | [Deployment & infrastructure](./14-deployment.md) | ⏳ Pending |
+| 12 | 6 | [API & frontend integration](./06-api-frontend.md) | ⏳ Pending |
+| 13 | 15 | [Performance & caching](./15-performance-caching.md) | ⏳ Pending |
+| 14 | 1 | [Local development environment](./01-local-dev.md) | ⏳ Pending |
+| 15 | 2 | [Project scaffolding](./02-scaffolding.md) | ⏳ Pending |
+| 16 | 16 | [Documentation & onboarding](./16-documentation.md) | ⏳ Pending |
 
 ## Architecture Reference
 
 The [`architecture/`](./architecture/) folder contains a deep reference for each architectural building block. Start with [`architecture/README.md`](./architecture/README.md).
 
+A printable poster of the architecture is available at [`architecture-map.html`](./architecture-map.html).
+
 ## Progress Tracker
 
-**Current step:** Section 10 (Logging, Monitoring & Error Tracking) is next.
+**Locked:** 4 sections (3, 4, 9, 12).
+**Remaining:** 12 sections.
 
-**Locked:** Sections 3, 4, 9.
-**Remaining:** 10 → 11 → 12 → 13 → 14 → 15.
+**Next up:** Section 5 (Database & Eloquent).
 
 ## Conventions for this Guide
 
