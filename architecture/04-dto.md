@@ -211,7 +211,7 @@ public function handle(CreateOrderDto $dto): OrderConfirmationDto
 ### Usage in a controller
 
 ```php
-public function store(StoreOrderRequest $request, PlaceOrder $action)
+public function store(StoreOrderRequest $request, PlaceOrderAction $action)
 {
     $dto = CreateOrderDto::from($request->validated());
     $order = $action->handle($dto);

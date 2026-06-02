@@ -152,7 +152,7 @@ final class PendingToShipped extends Transition
    OR `app(PendingToShipped::class, ['model' => $model, 'trackingNumber' => $tn])->handle()`
 3. Spatie checks if the transition is allowed → throws `CouldNotPerformTransition` if not
 4. Transition class runs `handle()` → updates model fields + saves
-5. Action fires the relevant Event (e.g., `OrderShipped`)
+5. Action fires the relevant Event (e.g., `OrderShippedEvent`)
 6. Listeners react
 
 ## What controls it
@@ -253,12 +253,12 @@ final class Order extends Model
 ### Action invoking the transition
 
 ```php
-final class MarkOrderAsShipped
+final class MarkOrderAsShippedAction
 {
     public function handle(Order $order, string $trackingNumber): Order
     {
         $order = $order->status->transitionTo(Shipped::class, $trackingNumber);
-        event(new OrderShipped($order));
+        event(new OrderShippedEvent($order));
         return $order;
     }
 }
@@ -267,12 +267,12 @@ final class MarkOrderAsShipped
 ### Trivial transition (no Transition class)
 
 ```php
-final class CancelOrder
+final class CancelOrderAction
 {
     public function handle(Order $order): Order
     {
         $order->status->transitionTo(Cancelled::class);
-        event(new OrderCancelled($order));
+        event(new OrderCancelledEvent($order));
         return $order;
     }
 }

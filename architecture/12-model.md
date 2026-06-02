@@ -112,7 +112,7 @@ namespace App\Models\Order;
 use App\Concerns\HasUuid;
 use App\Models\Order\States\OrderState;
 use App\Models\User;
-use App\Services\OrderNumberGenerator;
+use App\Services\OrderNumberGeneratorService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -145,7 +145,7 @@ final class Order extends Model
     {
         static::creating(function (Order $order) {
             // Order-specific: generate order number (not shared with other models)
-            $order->number ??= app(OrderNumberGenerator::class)->next();
+            $order->number ??= app(OrderNumberGeneratorService::class)->next();
         });
 
         static::deleted(function (Order $order) {

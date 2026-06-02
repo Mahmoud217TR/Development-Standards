@@ -14,7 +14,7 @@ To decouple the thing that happened from the things that react to it. The Action
 
 ## Rules
 
-1. Named in past tense: `OrderPlaced`, `UserRegistered`, `PaymentFailed`. Never imperative.
+1. Named in past tense: `OrderPlacedEvent`, `UserRegistered`, `PaymentFailed`. Never imperative.
 2. Carry the **domain entity** that the event is about, not raw fields.
 3. **Immutable.** Public readonly properties only.
 4. No methods beyond the constructor.
@@ -86,7 +86,7 @@ namespace App\Events;
 
 use App\Models\Order\Order;
 
-final class OrderPlaced
+final class OrderPlacedEvent
 {
     public function __construct(
         public readonly Order $order,
@@ -100,7 +100,7 @@ Firing it from an Action:
 public function handle(CreateOrderDto $dto): Order
 {
     $order = DB::transaction(fn () => Order::create([...]));
-    event(new OrderPlaced($order));
+    event(new OrderPlacedEvent($order));
     return $order;
 }
 ```
@@ -108,14 +108,14 @@ public function handle(CreateOrderDto $dto): Order
 Subscribing listeners (via convention — Laravel auto-discovers):
 
 ```php
-final class SendOrderConfirmationSms implements ShouldQueue
+final class SendOrderConfirmationSmsListener implements ShouldQueue
 {
-    public function handle(OrderPlaced $event): void { /* ... */ }
+    public function handle(OrderPlacedEvent $event): void { /* ... */ }
 }
 
-final class NotifyMerchantOfNewOrder implements ShouldQueue
+final class NotifyMerchantOfNewOrderListener implements ShouldQueue
 {
-    public function handle(OrderPlaced $event): void { /* ... */ }
+    public function handle(OrderPlacedEvent $event): void { /* ... */ }
 }
 ```
 

@@ -220,7 +220,7 @@ The same `OrderResource` is used by every endpoint that returns an order:
 ```php
 final class OrderController
 {
-    public function store(StoreOrderRequest $request, PlaceOrder $action)
+    public function store(StoreOrderRequest $request, PlaceOrderAction $action)
     {
         $dto = CreateOrderDto::from($request->validated());
         $order = $action->handle($dto);
@@ -232,7 +232,7 @@ final class OrderController
         return new OrderResource($order->load('items'));
     }
 
-    public function update(UpdateOrderRequest $request, Order $order, UpdateOrder $action)
+    public function update(UpdateOrderRequest $request, Order $order, UpdateOrderAction $action)
     {
         $dto = UpdateOrderDto::from($request->validated());
         $order = $action->handle($order, $dto);

@@ -114,9 +114,9 @@ $dto = CreateOrderDto::from($request->validated());
 ```php
 namespace App\Http\Controllers;
 
-use App\Actions\Orders\PlaceOrder;
-use App\Actions\Orders\UpdateOrder;
-use App\Actions\Orders\CancelOrder;
+use App\Actions\Orders\PlaceOrderAction;
+use App\Actions\Orders\UpdateOrderAction;
+use App\Actions\Orders\CancelOrderAction;
 use App\Data\Orders\CreateOrderDto;
 use App\Data\Orders\UpdateOrderDto;
 use App\Data\Orders\OrderFiltersDto;
@@ -143,21 +143,21 @@ final class OrderController
         return new OrderResource($order->load('items'));
     }
 
-    public function store(StoreOrderRequest $request, PlaceOrder $action)
+    public function store(StoreOrderRequest $request, PlaceOrderAction $action)
     {
         $dto = CreateOrderDto::from($request->validated());
         $order = $action->handle($dto);
         return new OrderResource($order->load('items'));
     }
 
-    public function update(UpdateOrderRequest $request, Order $order, UpdateOrder $action)
+    public function update(UpdateOrderRequest $request, Order $order, UpdateOrderAction $action)
     {
         $dto = UpdateOrderDto::from($request->validated());
         $order = $action->handle($order, $dto);
         return new OrderResource($order->load('items'));
     }
 
-    public function destroy(DestroyOrderRequest $request, Order $order, CancelOrder $action)
+    public function destroy(DestroyOrderRequest $request, Order $order, CancelOrderAction $action)
     {
         $action->handle($order);
         return response()->noContent();
@@ -170,7 +170,7 @@ final class OrderController
 ```php
 namespace App\Http\Controllers\Orders;
 
-use App\Actions\Orders\MarkOrderAsShipped;
+use App\Actions\Orders\MarkOrderAsShippedAction;
 use App\Data\Orders\ShipOrderDto;
 use App\Http\Requests\Orders\ShipOrderRequest;
 use App\Http\Resources\OrderResource;
@@ -181,7 +181,7 @@ final class MarkOrderAsShippedController
     public function __invoke(
         ShipOrderRequest $request,
         Order $order,
-        MarkOrderAsShipped $action,
+        MarkOrderAsShippedAction $action,
     ) {
         $dto = ShipOrderDto::from($request->validated());
         $order = $action->handle($order, $dto);
@@ -204,9 +204,9 @@ When updating distinct slices of a resource through separate endpoints:
 ```php
 namespace App\Http\Controllers;
 
-use App\Actions\Users\UpdateUserName;
-use App\Actions\Users\UpdateUserEmail;
-use App\Actions\Users\UpdateUserAddress;
+use App\Actions\Users\UpdateUserNameAction;
+use App\Actions\Users\UpdateUserEmailAction;
+use App\Actions\Users\UpdateUserAddressAction;
 use App\Data\Users\UpdateUserNameDto;
 use App\Data\Users\UpdateUserEmailDto;
 use App\Data\Users\UpdateUserAddressDto;
@@ -217,19 +217,19 @@ use App\Http\Resources\UserResource;
 
 final class ProfileController
 {
-    public function updateName(UpdateUserNameRequest $request, UpdateUserName $action)
+    public function updateName(UpdateUserNameRequest $request, UpdateUserNameAction $action)
     {
         $dto = UpdateUserNameDto::from($request->validated());
         return new UserResource($action->handle($request->user(), $dto));
     }
 
-    public function updateEmail(UpdateUserEmailRequest $request, UpdateUserEmail $action)
+    public function updateEmail(UpdateUserEmailRequest $request, UpdateUserEmailAction $action)
     {
         $dto = UpdateUserEmailDto::from($request->validated());
         return new UserResource($action->handle($request->user(), $dto));
     }
 
-    public function updateAddress(UpdateUserAddressRequest $request, UpdateUserAddress $action)
+    public function updateAddress(UpdateUserAddressRequest $request, UpdateUserAddressAction $action)
     {
         $dto = UpdateUserAddressDto::from($request->validated());
         return new UserResource($action->handle($request->user(), $dto));

@@ -17,7 +17,7 @@ To keep Actions focused on the core operation while still triggering arbitrarily
 1. One Listener per reaction. Don't make one Listener that sends SMS AND emails AND fires a webhook.
 2. **Implements `ShouldQueue` by default.** Listeners run async.
 3. Exactly one public method: `handle({EventClass} $event)`.
-4. Named after what it does, not what it reacts to: `SendOrderConfirmationSms`, not `OrderPlacedListener`.
+4. Named after what it does, not what it reacts to: `SendOrderConfirmationSmsListener`, not `OrderPlacedListener`.
 5. Listeners may use Services and Queries. They MUST NOT call Actions.
 6. Listeners SHOULD NOT fire further Events (avoid chains).
 7. **`final` by default.**
@@ -91,11 +91,11 @@ The Event class is the sole parameter to `handle()`.
 ```php
 namespace App\Listeners;
 
-use App\Events\OrderPlaced;
+use App\Events\OrderPlacedEvent;
 use App\Services\SmsService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 
-final class SendOrderConfirmationSms implements ShouldQueue
+final class SendOrderConfirmationSmsListener implements ShouldQueue
 {
     public int $tries = 3;
     public int $backoff = 60;
@@ -103,7 +103,7 @@ final class SendOrderConfirmationSms implements ShouldQueue
 
     public function __construct(private SmsService $sms) {}
 
-    public function handle(OrderPlaced $event): void
+    public function handle(OrderPlacedEvent $event): void
     {
         $this->sms->send(
             $event->order->phone,
@@ -116,21 +116,21 @@ final class SendOrderConfirmationSms implements ShouldQueue
 Multiple Listeners on the same Event:
 
 ```php
-final class NotifyMerchantOfNewOrder implements ShouldQueue
+final class NotifyMerchantOfNewOrderListener implements ShouldQueue
 {
-    public function handle(OrderPlaced $event): void { /* ... */ }
+    public function handle(OrderPlacedEvent $event): void { /* ... */ }
 }
 
-final class UpdateProductInventory implements ShouldQueue
+final class UpdateProductInventoryListener implements ShouldQueue
 {
-    public function handle(OrderPlaced $event): void { /* ... */ }
+    public function handle(OrderPlacedEvent $event): void { /* ... */ }
 }
 
-final class RecordOrderAnalytics implements ShouldQueue
+final class RecordOrderAnalyticsListener implements ShouldQueue
 {
-    public function handle(OrderPlaced $event): void { /* ... */ }
+    public function handle(OrderPlacedEvent $event): void { /* ... */ }
 }
 ```
 
-All run in parallel on the queue after `OrderPlaced` fires.
+All run in parallel on the queue after `OrderPlacedEvent` fires.
 

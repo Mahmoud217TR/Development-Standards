@@ -78,8 +78,8 @@ final class {VerbObject} implements ShouldQueue
 
 ## When to use
 
-- **Bulk operations** (`ImportProductsFromCsv`, `ExportOrdersToXlsx`)
-- **Scheduled work** dispatched from the scheduler (`SendDailyDigest`, `ChargeRecurringSubscriptions`)
+- **Bulk operations** (`ImportProductsFromCsvJob`, `ExportOrdersToXlsx`)
+- **Scheduled work** dispatched from the scheduler (`SendDailyDigest`, `ChargeRecurringSubscriptionsJob`)
 - **Webhook handlers** (return 200 immediately, process in background)
 - **Retry-required external calls** (sync to third-party APIs with exponential backoff)
 - **Long-running tasks** that shouldn't block the request thread
@@ -127,16 +127,16 @@ final class {VerbObject} implements ShouldQueue
 ```php
 namespace App\Jobs;
 
-use App\Events\ProductsImported;
+use App\Events\ProductsImportedEvent;
 use App\Models\User;
-use App\Services\CsvParser;
+use App\Services\CsvParserService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 
-final class ImportProductsFromCsv implements ShouldQueue
+final class ImportProductsFromCsvJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -149,7 +149,7 @@ final class ImportProductsFromCsv implements ShouldQueue
         public User $merchant,
     ) {}
 
-    public function handle(CsvParser $parser): void
+    public function handle(CsvParserService $parser): void
     {
         $imported = collect();
         foreach ($parser->rows($this->filePath) as $row) {
@@ -157,7 +157,7 @@ final class ImportProductsFromCsv implements ShouldQueue
             $imported->push($product);
         }
 
-        event(new ProductsImported($this->merchant, $imported));
+        event(new ProductsImportedEvent($this->merchant, $imported));
     }
 }
 ```
@@ -165,7 +165,7 @@ final class ImportProductsFromCsv implements ShouldQueue
 ### Scheduled job
 
 ```php
-final class SendDailyDigestToMerchants implements ShouldQueue
+final class SendDailyDigestToMerchantsJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -173,7 +173,7 @@ final class SendDailyDigestToMerchants implements ShouldQueue
     {
         User::merchants()->chunk(100, function ($merchants) {
             foreach ($merchants as $merchant) {
-                SendMerchantDigest::dispatch($merchant);
+                SendMerchantDigestJob::dispatch($merchant);
             }
         });
     }
@@ -183,7 +183,7 @@ final class SendDailyDigestToMerchants implements ShouldQueue
 Scheduled in `routes/console.php`:
 
 ```php
-Schedule::job(new SendDailyDigestToMerchants)->dailyAt('08:00');
+Schedule::job(new SendDailyDigestToMerchantsJob)->dailyAt('08:00');
 ```
 
 ### Delayed job (dispatched from an Action)
@@ -193,9 +193,9 @@ Schedule::job(new SendDailyDigestToMerchants)->dailyAt('08:00');
 public function handle(CreateOrderDto $dto): Order
 {
     $order = DB::transaction(fn () => Order::create([...]));
-    event(new OrderPlaced($order));
+    event(new OrderPlacedEvent($order));
 
-    SendUnpaidOrderReminder::dispatch($order)->delay(now()->addDay());
+    SendUnpaidOrderReminderJob::dispatch($order)->delay(now()->addDay());
 
     return $order;
 }
@@ -207,7 +207,7 @@ public function handle(CreateOrderDto $dto): Order
 public function stripe(Request $request, StripeService $stripe)
 {
     $payload = $stripe->verifyWebhook($request);
-    ProcessStripeEvent::dispatch($payload);
+    ProcessStripeEventJob::dispatch($payload);
     return response('', 200);
 }
 ```

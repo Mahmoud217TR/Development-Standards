@@ -56,7 +56,7 @@ Whatever the capability produces:
 - Wrapping an external API (Stripe, Mailgun, Twilio, Meilisearch)
 - Wrapping a library that has complex setup (PDF, image processing)
 - Encapsulating a piece of infrastructure (filesystem, cache, queue config)
-- Encapsulating an internal capability used across many Actions (`OrderNumberGenerator`, `MoneyFormatter`)
+- Encapsulating an internal capability used across many Actions (`OrderNumberGeneratorService`, `MoneyFormatter`)
 
 ## When NOT to use
 
@@ -126,7 +126,7 @@ $this->app->bind(PaymentGatewayContract::class, function () {
 ### Internal capability
 
 ```php
-final class OrderNumberGenerator
+final class OrderNumberGeneratorService
 {
     public function next(): string
     {

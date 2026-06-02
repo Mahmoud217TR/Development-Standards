@@ -105,18 +105,18 @@ Never return raw arrays from Actions.
 namespace App\Actions\Orders;
 
 use App\Data\Orders\CreateOrderDto;
-use App\Events\OrderPlaced;
+use App\Events\OrderPlacedEvent;
 use App\Exceptions\InsufficientInventoryException;
 use App\Models\Order\Order;
-use App\Services\OrderNumberGenerator;
+use App\Services\OrderNumberGeneratorService;
 use App\Services\InventoryService;
 use Illuminate\Support\Facades\DB;
 
-final class PlaceOrder
+final class PlaceOrderAction
 {
     public function __construct(
         private InventoryService $inventory,
-        private OrderNumberGenerator $numbers,
+        private OrderNumberGeneratorService $numbers,
     ) {}
 
     public function handle(CreateOrderDto $dto): Order
@@ -138,7 +138,7 @@ final class PlaceOrder
         });
 
         // Async side effects: SMS, invoice generation, merchant notification
-        event(new OrderPlaced($order));
+        event(new OrderPlacedEvent($order));
 
         return $order;
     }
@@ -150,7 +150,7 @@ final class PlaceOrder
 When the response must include computed data (loyalty points earned, totals with tax, etc.), that work belongs inside the Action:
 
 ```php
-final class PlaceOrder
+final class PlaceOrderAction
 {
     public function __construct(
         private InventoryService $inventory,
@@ -177,7 +177,7 @@ final class PlaceOrder
         });
 
         // Async side effects fire AFTER the transaction commits
-        event(new OrderPlaced($result->order));
+        event(new OrderPlacedEvent($result->order));
 
         return $result;
     }
@@ -187,7 +187,7 @@ final class PlaceOrder
 ### Action with an explicit business fallback (narrow try/catch)
 
 ```php
-final class PlaceOrder
+final class PlaceOrderAction
 {
     public function handle(CreateOrderDto $dto): Order
     {
@@ -201,7 +201,7 @@ final class PlaceOrder
             report($e);
         }
 
-        event(new OrderPlaced($order));
+        event(new OrderPlacedEvent($order));
 
         return $order;
     }
@@ -211,7 +211,7 @@ final class PlaceOrder
 ### Controller usage
 
 ```php
-public function store(StoreOrderRequest $request, PlaceOrder $action)
+public function store(StoreOrderRequest $request, PlaceOrderAction $action)
 {
     $dto = CreateOrderDto::from($request->validated());
     $order = $action->handle($dto);

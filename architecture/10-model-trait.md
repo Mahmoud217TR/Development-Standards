@@ -21,7 +21,7 @@ final class Order extends Model
     {
         static::creating(function (Order $order) {
             $order->uuid ??= (string) Str::uuid();
-            $order->number ??= app(OrderNumberGenerator::class)->next();
+            $order->number ??= app(OrderNumberGeneratorService::class)->next();
         });
     }
 }
@@ -181,7 +181,7 @@ final class Order extends Model
     protected static function booted(): void
     {
         static::creating(function (Order $order) {
-            $order->number ??= app(OrderNumberGenerator::class)->next();
+            $order->number ??= app(OrderNumberGeneratorService::class)->next();
         });
     }
 }

@@ -124,7 +124,7 @@ final class InsufficientInventoryException extends \DomainException
 ### Throwing from an Action
 
 ```php
-final class PlaceOrder
+final class PlaceOrderAction
 {
     public function handle(CreateOrderDto $dto): Order
     {
@@ -164,7 +164,7 @@ final class StripeService
 ### Action with explicit fallback (narrow try/catch)
 
 ```php
-final class PlaceOrder
+final class PlaceOrderAction
 {
     public function handle(CreateOrderDto $dto): Order
     {
@@ -177,7 +177,7 @@ final class PlaceOrder
             report($e);
         }
 
-        event(new OrderPlaced($order));
+        event(new OrderPlacedEvent($order));
 
         return $order;
     }
@@ -245,14 +245,14 @@ return Application::configure(basePath: dirname(__DIR__))
 ### Job using `failed()` for final-failure logic
 
 ```php
-final class SendOrderConfirmationSms implements ShouldQueue
+final class SendOrderConfirmationSmsListener implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries = 3;
     public int $backoff = 60;
 
-    public function handle(OrderPlaced $event): void
+    public function handle(OrderPlacedEvent $event): void
     {
         $this->sms->send(...);  // if this throws, queue retries
     }
