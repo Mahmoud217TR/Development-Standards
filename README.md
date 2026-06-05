@@ -61,6 +61,19 @@ The [`architecture/`](./architecture/) folder contains a deep reference for each
 
 A printable poster of the architecture is available at [`architecture-map.html`](./architecture-map.html).
 
+## AI Skills
+
+For AI coding assistants, distilled directive-form versions of the standards live in [`.ai/skills/`](./.ai/skills/). Pointer files at the repo root forward each tool to those skills:
+
+| Tool | File |
+|---|---|
+| Claude Code | `CLAUDE.md` |
+| OpenCode + cross-tool standard | `AGENTS.md` |
+| GitHub Copilot | `.github/copilot-instructions.md` |
+| Cursor | `.cursorrules` |
+
+The skills cover **architecture** (Section 4) and **testing** (Section 9) so far. More skills will be added as later sections are locked.
+
 ## Progress Tracker
 
 **Locked:** 4 sections (3, 4, 9, 12).
