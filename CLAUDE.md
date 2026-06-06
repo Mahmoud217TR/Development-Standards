@@ -15,7 +15,7 @@ Read these files at the start of every session, in this order:
 - When in doubt, prefer the more explicit, type-safe, testable option
 - Always show complete files (with `<?php`, `declare(strict_types=1);`, namespace, all `use` statements) — never partial snippets unless explicitly asked
 - All concrete classes are `final` unless they are abstract bases
-- All class names carry their type suffix: `PlaceOrderAction`, `OrderPlacedEvent`, `OrderResource`, `CreateOrderDto`, etc.
+- All class names carry their type suffix: `PlaceOrderAction`, `OrderPlacedEvent`, `OrderResource`, `CreateOrderData`, etc.
 - The forbidden-patterns list in `architecture.md` is non-negotiable — refactor immediately if you detect them
 
 ## Human-readable standards

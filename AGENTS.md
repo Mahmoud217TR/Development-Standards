@@ -15,7 +15,7 @@ Load these files in this order at the start of a session:
 - When in doubt, prefer the more explicit, type-safe, testable option
 - Show complete files with `<?php`, `declare(strict_types=1);`, full namespace, all `use` statements — no partial snippets unless explicitly asked
 - All concrete classes are `final` unless abstract
-- All class names carry their type suffix: `PlaceOrderAction`, `OrderPlacedEvent`, `OrderResource`, `CreateOrderDto`
+- All class names carry their type suffix: `PlaceOrderAction`, `OrderPlacedEvent`, `OrderResource`, `CreateOrderData`
 - The forbidden-patterns list in `architecture.md` is non-negotiable
 
 ## Source-of-truth precedence

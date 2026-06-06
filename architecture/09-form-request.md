@@ -227,7 +227,7 @@ final class UpdateOrderRequest extends FormRequest
 ```php
 public function store(StoreOrderRequest $request, PlaceOrderAction $action)
 {
-    $dto = CreateOrderDto::from($request->validated());
+    $dto = CreateOrderData::from($request->validated());
     $order = $action->handle($dto);
     return new OrderResource($order);
 }
@@ -237,6 +237,6 @@ Order of operations:
 1. `StoreOrderRequest::authorize()` → 403 if not allowed
 2. `StoreOrderRequest` validation runs → 422 if invalid
 3. `$request->validated()` returns the clean array
-4. `CreateOrderDto::from(...)` produces a typed DTO
+4. `CreateOrderData::from(...)` produces a typed DTO
 5. Action runs with the DTO
 6. Controller wraps the result in a Resource

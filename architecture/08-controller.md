@@ -17,7 +17,7 @@ To handle HTTP protocol concerns (status codes, response format, headers) and to
 1. Controllers contain **no business logic**, **no query building**, **no validation rules**.
 2. Each method is 3–6 lines.
 3. Dependencies (FormRequests, Actions, Queries) received via method-level dependency injection.
-4. DTOs constructed inside the controller via `XDto::from($request->validated())`.
+4. DTOs constructed inside the controller via `X{X}Data::from($request->validated())`.
 5. Responses returned via `new XResource(...)` or `XResource::collection(...)`, or via Laravel's response helpers for non-Resource responses (downloads, redirects, no-content).
 6. Resource controllers preferred for standard CRUD; single-action invokable controllers for non-CRUD endpoints.
 7. **`final` by default.**
@@ -60,7 +60,7 @@ Method-level DI for each handler:
 DTOs are **constructed inside the method body**, not injected:
 
 ```php
-$dto = CreateOrderDto::from($request->validated());
+$dto = CreateOrderData::from($request->validated());
 ```
 
 ## Returns
@@ -117,9 +117,9 @@ namespace App\Http\Controllers;
 use App\Actions\Orders\PlaceOrderAction;
 use App\Actions\Orders\UpdateOrderAction;
 use App\Actions\Orders\CancelOrderAction;
-use App\Data\Orders\CreateOrderDto;
-use App\Data\Orders\UpdateOrderDto;
-use App\Data\Orders\OrderFiltersDto;
+use App\Data\Orders\CreateOrderData;
+use App\Data\Orders\UpdateOrderData;
+use App\Data\Orders\OrderFiltersData;
 use App\Http\Requests\Orders\StoreOrderRequest;
 use App\Http\Requests\Orders\UpdateOrderRequest;
 use App\Http\Requests\Orders\DestroyOrderRequest;
@@ -132,7 +132,7 @@ final class OrderController
 {
     public function index(Request $request, ListUserOrdersQuery $query)
     {
-        $filters = OrderFiltersDto::from($request->query());
+        $filters = OrderFiltersData::from($request->query());
         return OrderResource::collection(
             $query->handle($request->user(), $filters)
         );
@@ -145,14 +145,14 @@ final class OrderController
 
     public function store(StoreOrderRequest $request, PlaceOrderAction $action)
     {
-        $dto = CreateOrderDto::from($request->validated());
+        $dto = CreateOrderData::from($request->validated());
         $order = $action->handle($dto);
         return new OrderResource($order->load('items'));
     }
 
     public function update(UpdateOrderRequest $request, Order $order, UpdateOrderAction $action)
     {
-        $dto = UpdateOrderDto::from($request->validated());
+        $dto = UpdateOrderData::from($request->validated());
         $order = $action->handle($order, $dto);
         return new OrderResource($order->load('items'));
     }
@@ -171,7 +171,7 @@ final class OrderController
 namespace App\Http\Controllers\Orders;
 
 use App\Actions\Orders\MarkOrderAsShippedAction;
-use App\Data\Orders\ShipOrderDto;
+use App\Data\Orders\ShipOrderData;
 use App\Http\Requests\Orders\ShipOrderRequest;
 use App\Http\Resources\OrderResource;
 use App\Models\Order\Order;
@@ -183,7 +183,7 @@ final class MarkOrderAsShippedController
         Order $order,
         MarkOrderAsShippedAction $action,
     ) {
-        $dto = ShipOrderDto::from($request->validated());
+        $dto = ShipOrderData::from($request->validated());
         $order = $action->handle($order, $dto);
         return new OrderResource($order);
     }
@@ -207,9 +207,9 @@ namespace App\Http\Controllers;
 use App\Actions\Users\UpdateUserNameAction;
 use App\Actions\Users\UpdateUserEmailAction;
 use App\Actions\Users\UpdateUserAddressAction;
-use App\Data\Users\UpdateUserNameDto;
-use App\Data\Users\UpdateUserEmailDto;
-use App\Data\Users\UpdateUserAddressDto;
+use App\Data\Users\UpdateUserNameData;
+use App\Data\Users\UpdateUserEmailData;
+use App\Data\Users\UpdateUserAddressData;
 use App\Http\Requests\Users\UpdateUserNameRequest;
 use App\Http\Requests\Users\UpdateUserEmailRequest;
 use App\Http\Requests\Users\UpdateUserAddressRequest;
@@ -219,19 +219,19 @@ final class ProfileController
 {
     public function updateName(UpdateUserNameRequest $request, UpdateUserNameAction $action)
     {
-        $dto = UpdateUserNameDto::from($request->validated());
+        $dto = UpdateUserNameData::from($request->validated());
         return new UserResource($action->handle($request->user(), $dto));
     }
 
     public function updateEmail(UpdateUserEmailRequest $request, UpdateUserEmailAction $action)
     {
-        $dto = UpdateUserEmailDto::from($request->validated());
+        $dto = UpdateUserEmailData::from($request->validated());
         return new UserResource($action->handle($request->user(), $dto));
     }
 
     public function updateAddress(UpdateUserAddressRequest $request, UpdateUserAddressAction $action)
     {
-        $dto = UpdateUserAddressDto::from($request->validated());
+        $dto = UpdateUserAddressData::from($request->validated());
         return new UserResource($action->handle($request->user(), $dto));
     }
 }

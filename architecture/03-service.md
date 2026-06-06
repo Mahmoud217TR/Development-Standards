@@ -87,7 +87,7 @@ namespace App\Services;
 
 use App\Exceptions\PaymentDeclinedException;
 use App\Exceptions\PaymentGatewayException;
-use App\Data\Stripe\RefundDto;
+use App\Data\Stripe\RefundData;
 
 final class StripeService implements PaymentGatewayContract
 {
@@ -95,7 +95,7 @@ final class StripeService implements PaymentGatewayContract
         private \Stripe\StripeClient $client,
     ) {}
 
-    public function refund(string $chargeId, int $amount): RefundDto
+    public function refund(string $chargeId, int $amount): RefundData
     {
         try {
             $response = $this->client->refunds->create([
@@ -108,7 +108,7 @@ final class StripeService implements PaymentGatewayContract
             throw new PaymentGatewayException($e->getMessage(), previous: $e);
         }
 
-        return RefundDto::from($response);
+        return RefundData::from($response);
     }
 }
 ```

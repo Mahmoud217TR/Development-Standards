@@ -203,13 +203,13 @@ final class FakeStripeService implements StripeServiceContract
     public array $refunds = [];
     public ?\Throwable $nextException = null;
 
-    public function refund(string $chargeId, int $amount): RefundDto
+    public function refund(string $chargeId, int $amount): RefundData
     {
         if ($this->nextException) {
             throw $this->nextException;
         }
         $this->refunds[] = compact('chargeId', 'amount');
-        return new RefundDto(id: 're_fake_' . count($this->refunds), amount: $amount);
+        return new RefundData(id: 're_fake_' . count($this->refunds), amount: $amount);
     }
 
     public function failNextWith(\Throwable $e): void

@@ -104,7 +104,7 @@ Never return raw arrays from Actions.
 ```php
 namespace App\Actions\Orders;
 
-use App\Data\Orders\CreateOrderDto;
+use App\Data\Orders\CreateOrderData;
 use App\Events\OrderPlacedEvent;
 use App\Exceptions\InsufficientInventoryException;
 use App\Models\Order\Order;
@@ -119,7 +119,7 @@ final class PlaceOrderAction
         private OrderNumberGeneratorService $numbers,
     ) {}
 
-    public function handle(CreateOrderDto $dto): Order
+    public function handle(CreateOrderData $dto): Order
     {
         if (!$this->inventory->isAvailable($dto->items)) {
             throw new InsufficientInventoryException($dto->items);
@@ -157,7 +157,7 @@ final class PlaceOrderAction
         private LoyaltyService $loyalty,
     ) {}
 
-    public function handle(CreateOrderDto $dto): OrderConfirmationDto
+    public function handle(CreateOrderData $dto): OrderConfirmationData
     {
         if (!$this->inventory->isAvailable($dto->items)) {
             throw new InsufficientInventoryException($dto->items);
@@ -170,7 +170,7 @@ final class PlaceOrderAction
             // Loyalty points must be in the response — sync
             $pointsEarned = $this->loyalty->awardPointsFor($order);
 
-            return new OrderConfirmationDto(
+            return new OrderConfirmationData(
                 order: $order,
                 points_earned: $pointsEarned,
             );
@@ -189,7 +189,7 @@ final class PlaceOrderAction
 ```php
 final class PlaceOrderAction
 {
-    public function handle(CreateOrderDto $dto): Order
+    public function handle(CreateOrderData $dto): Order
     {
         $order = DB::transaction(fn () => /* create order */);
 
@@ -213,7 +213,7 @@ final class PlaceOrderAction
 ```php
 public function store(StoreOrderRequest $request, PlaceOrderAction $action)
 {
-    $dto = CreateOrderDto::from($request->validated());
+    $dto = CreateOrderData::from($request->validated());
     $order = $action->handle($dto);
     return new OrderResource($order);
 }

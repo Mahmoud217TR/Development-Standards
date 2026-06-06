@@ -369,8 +369,8 @@ it('paginates with configurable per_page', function () {
 declare(strict_types=1);
 
 use App\Actions\Orders\PlaceOrderAction;
-use App\Data\Orders\CreateOrderDto;
-use App\Data\Orders\OrderItemDto;
+use App\Data\Orders\CreateOrderData;
+use App\Data\Orders\OrderItemData;
 use App\Events\OrderPlacedEvent;
 use App\Exceptions\InsufficientInventoryException;
 use App\Models\Order\Order;
@@ -384,10 +384,10 @@ it('creates an order with items', function () {
 
     Event::fake();
 
-    $dto = new CreateOrderDto(
+    $dto = new CreateOrderData(
         customer_name: 'Test Customer',
         phone: '0912345678',
-        items: [new OrderItemDto(product_id: $product->id, quantity: 2)],
+        items: [new OrderItemData(product_id: $product->id, quantity: 2)],
     );
 
     $order = app(PlaceOrderAction::class)->handle($dto);
@@ -401,10 +401,10 @@ it('throws when inventory is insufficient', function () {
     $merchant = User::factory()->merchant()->create();
     $product = Product::factory()->for($merchant)->create(['stock' => 1]);
 
-    $dto = new CreateOrderDto(
+    $dto = new CreateOrderData(
         customer_name: 'Test Customer',
         phone: '0912345678',
-        items: [new OrderItemDto(product_id: $product->id, quantity: 5)],
+        items: [new OrderItemData(product_id: $product->id, quantity: 5)],
     );
 
     expect(fn () => app(PlaceOrderAction::class)->handle($dto))
@@ -416,10 +416,10 @@ it('fires OrderPlacedEvent after placing', function () {
     $merchant = User::factory()->merchant()->create();
     $product = Product::factory()->for($merchant)->create(['stock' => 10]);
 
-    $dto = new CreateOrderDto(
+    $dto = new CreateOrderData(
         customer_name: 'Test Customer',
         phone: '0912345678',
-        items: [new OrderItemDto(product_id: $product->id, quantity: 1)],
+        items: [new OrderItemData(product_id: $product->id, quantity: 1)],
     );
 
     $order = app(PlaceOrderAction::class)->handle($dto);
@@ -436,10 +436,10 @@ it('rolls back when persistence fails mid-transaction', function () {
         throw new \Exception('boom');
     });
 
-    $dto = new CreateOrderDto(
+    $dto = new CreateOrderData(
         customer_name: 'Test Customer',
         phone: '0912345678',
-        items: [new OrderItemDto(product_id: $product->id, quantity: 1)],
+        items: [new OrderItemData(product_id: $product->id, quantity: 1)],
     );
 
     expect(fn () => app(PlaceOrderAction::class)->handle($dto))->toThrow(\Exception::class);
@@ -468,7 +468,7 @@ it('rolls back when persistence fails mid-transaction', function () {
 
 declare(strict_types=1);
 
-use App\Data\Orders\OrderFiltersDto;
+use App\Data\Orders\OrderFiltersData;
 use App\Models\Order\Order;
 use App\Models\User;
 use App\Queries\Orders\ListUserOrdersQuery;
@@ -480,7 +480,7 @@ it('returns only the given user orders', function () {
     Order::factory()->for($user, 'merchant')->count(3)->create();
     Order::factory()->for($otherUser, 'merchant')->count(5)->create();
 
-    $result = app(ListUserOrdersQuery::class)->handle($user, new OrderFiltersDto());
+    $result = app(ListUserOrdersQuery::class)->handle($user, new OrderFiltersData());
 
     expect($result->total())->toBe(3);
 });
@@ -492,7 +492,7 @@ it('filters by status', function () {
 
     $result = app(ListUserOrdersQuery::class)->handle(
         $user,
-        new OrderFiltersDto(status: 'pending')
+        new OrderFiltersData(status: 'pending')
     );
 
     expect($result->total())->toBe(2);
@@ -505,7 +505,7 @@ it('searches by order number', function () {
 
     $result = app(ListUserOrdersQuery::class)->handle(
         $user,
-        new OrderFiltersDto(search: '00001')
+        new OrderFiltersData(search: '00001')
     );
 
     expect($result->total())->toBe(1);
@@ -533,7 +533,7 @@ use App\Exceptions\PaymentGatewayException;
 use App\Services\StripeService;
 use Illuminate\Support\Facades\Http;
 
-it('returns a RefundDto on successful refund', function () {
+it('returns a RefundData on successful refund', function () {
     Http::fake([
         'api.stripe.com/v1/refunds' => Http::response([
             'id' => 're_123',
@@ -584,7 +584,7 @@ declare(strict_types=1);
 
 namespace Tests\Fakes;
 
-use App\Data\Payments\RefundDto;
+use App\Data\Payments\RefundData;
 use App\Services\Contracts\PaymentGatewayContract;
 
 final class FakeStripeService implements PaymentGatewayContract
@@ -592,13 +592,13 @@ final class FakeStripeService implements PaymentGatewayContract
     public array $refunds = [];
     public ?\Throwable $nextException = null;
 
-    public function refund(string $chargeId, int $amount): RefundDto
+    public function refund(string $chargeId, int $amount): RefundData
     {
         if ($this->nextException) {
             throw $this->nextException;
         }
         $this->refunds[] = compact('chargeId', 'amount');
-        return new RefundDto(id: 're_fake_' . count($this->refunds), amount: $amount);
+        return new RefundData(id: 're_fake_' . count($this->refunds), amount: $amount);
     }
 
     public function failNextWith(\Throwable $e): void

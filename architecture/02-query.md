@@ -100,7 +100,7 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 final class ListUserOrdersQuery
 {
-    public function handle(User $user, OrderFiltersDto $filters): LengthAwarePaginator
+    public function handle(User $user, OrderFiltersData $filters): LengthAwarePaginator
     {
         return $user->orders()
             ->when($filters->status, fn ($q, $status) => $q->where('status', $status))
@@ -122,11 +122,11 @@ final class ListUserOrdersQuery
 ```php
 final class UserDashboardStatsQuery
 {
-    public function handle(User $user, Carbon $from, Carbon $to): DashboardStatsDto
+    public function handle(User $user, Carbon $from, Carbon $to): DashboardStatsData
     {
         $orders = $user->orders()->whereBetween('created_at', [$from, $to]);
 
-        return new DashboardStatsDto(
+        return new DashboardStatsData(
             total_orders: $orders->count(),
             pending_orders: (clone $orders)->where('status', 'pending')->count(),
             total_revenue: (clone $orders)->sum('total_amount'),
@@ -142,7 +142,7 @@ final class SearchProductsQuery
 {
     public function __construct(private SearchService $search) {}
 
-    public function handle(string $term, ProductFiltersDto $filters): Collection
+    public function handle(string $term, ProductFiltersData $filters): Collection
     {
         $hits = $this->search->index('products')->search($term, [
             'filter' => $filters->toSearchFilter(),

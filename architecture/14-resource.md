@@ -160,7 +160,7 @@ final class UserResource extends JsonResource
 ```php
 public function index(Request $request, ListOrdersQuery $query)
 {
-    $filters = OrderFiltersDto::from($request->query());
+    $filters = OrderFiltersData::from($request->query());
     return OrderResource::collection($query->handle($filters));
 }
 ```
@@ -222,7 +222,7 @@ final class OrderController
 {
     public function store(StoreOrderRequest $request, PlaceOrderAction $action)
     {
-        $dto = CreateOrderDto::from($request->validated());
+        $dto = CreateOrderData::from($request->validated());
         $order = $action->handle($dto);
         return new OrderResource($order->load('items'));
     }
@@ -234,14 +234,14 @@ final class OrderController
 
     public function update(UpdateOrderRequest $request, Order $order, UpdateOrderAction $action)
     {
-        $dto = UpdateOrderDto::from($request->validated());
+        $dto = UpdateOrderData::from($request->validated());
         $order = $action->handle($order, $dto);
         return new OrderResource($order->load('items'));
     }
 
     public function index(Request $request, ListOrdersQuery $query)
     {
-        $filters = OrderFiltersDto::from($request->query());
+        $filters = OrderFiltersData::from($request->query());
         return OrderResource::collection($query->handle($filters));
     }
 }

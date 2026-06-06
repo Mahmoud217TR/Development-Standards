@@ -43,9 +43,9 @@ app/
 │   └── PdfRendererService.php
 ├── Data/                          # Plain DTOs (spatie/laravel-data Data classes — no validation)
 │   └── Orders/                    # subfolder (8+ files rule reached)
-│       ├── CreateOrderDto.php
-│       ├── UpdateOrderDto.php
-│       └── OrderFiltersDto.php
+│       ├── CreateOrderData.php
+│       ├── UpdateOrderData.php
+│       └── OrderFiltersData.php
 ├── Jobs/                          # Async work (dispatched, not called)
 │   ├── ImportProductsFromCsvJob.php
 │   └── SendDailyDigestJob.php
@@ -97,7 +97,7 @@ Every class of a known architectural type has the type as its suffix. This makes
 | Action | `Action` | `PlaceOrderAction`, `UpdateUserEmailAction` |
 | Query | `Query` | `ListUserOrdersQuery`, `DashboardStatisticsQuery` |
 | Service | `Service` | `SmsService`, `StripeService`, `OrderNumberGeneratorService`, `PdfRendererService` |
-| DTO | `Dto` | `CreateOrderDto`, `UpdateOrderDto`, `OrderFiltersDto` |
+| DTO | `Data` | `CreateOrderData`, `UpdateOrderData`, `OrderFiltersData` |
 | Event | `Event` | `OrderPlacedEvent`, `UserRegisteredEvent` |
 | Listener | `Listener` | `SendOrderConfirmationSmsListener`, `NotifyMerchantOfNewOrderListener` |
 | Job | `Job` | `ImportProductsFromCsvJob`, `SendDailyDigestJob` |
@@ -129,8 +129,8 @@ Examples after promotion:
 ```
 app/Actions/Orders/PlaceOrderAction.php
 app/Actions/Users/RegisterUserAction.php
-app/Data/Orders/CreateOrderDto.php
-app/Data/Users/UpdateUserNameDto.php
+app/Data/Orders/CreateOrderData.php
+app/Data/Users/UpdateUserNameData.php
 app/Http/Requests/Orders/StoreOrderRequest.php
 ```
 
@@ -182,10 +182,10 @@ Rules:
 - All properties `public readonly`
 - All DTOs `final`
 - Naming:
-  - `Create{X}Dto` — input for creation
-  - `Update{X}Dto` — input for update; OR `Update{X}{Field}Dto` for per-field-group updates (e.g., `UpdateUserNameDto`, `UpdateUserEmailDto`)
-  - `{X}FiltersDto` — query parameters for Queries
-  - `{X}Dto` — generic transport between layers (when needed)
+  - `Create{X}Data` — input for creation
+  - `Update{X}Data` — input for update; OR `Update{X}{Field}Data` for per-field-group updates (e.g., `UpdateUserNameData`, `UpdateUserEmailData`)
+  - `{X}FiltersData` — query parameters for Queries
+  - `{X}Data` — generic transport between layers (when needed)
 
 **JsonResource** — `app/Http/Resources/`
 - Handles **output serialization**
@@ -199,7 +199,7 @@ Rules:
 ```php
 public function store(StoreOrderRequest $request, PlaceOrder $action)
 {
-    $dto = CreateOrderDto::from($request->validated());
+    $dto = CreateOrderData::from($request->validated());
     $order = $action->handle($dto);
     return new OrderResource($order);
 }
@@ -217,7 +217,7 @@ public function store(StoreOrderRequest $request, PlaceOrder $action)
 ```php
 public function index(Request $request, ListOrdersQuery $query)
 {
-    $filters = OrderFiltersDto::from($request->query());
+    $filters = OrderFiltersData::from($request->query());
     return OrderResource::collection($query->handle($filters));
 }
 ```
@@ -233,9 +233,9 @@ app/Http/Requests/Users/
   └── UpdateUserAddressRequest.php
 
 app/Data/Users/
-  ├── UpdateUserNameDto.php
-  ├── UpdateUserEmailDto.php
-  └── UpdateUserAddressDto.php
+  ├── UpdateUserNameData.php
+  ├── UpdateUserEmailData.php
+  └── UpdateUserAddressData.php
 
 app/Actions/Users/
   ├── UpdateUserNameAction.php
@@ -251,7 +251,7 @@ Routes:
   PATCH /profile/address  → ProfileController@updateAddress
 ```
 
-Use a **single combined `UpdateUserDto`** with optional fields **only** when one form legitimately edits all fields together (e.g., admin "edit user" page).
+Use a **single combined `UpdateUserData`** with optional fields **only** when one form legitimately edits all fields together (e.g., admin "edit user" page).
 
 ### 9. No Repository Pattern
 

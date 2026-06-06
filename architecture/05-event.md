@@ -97,7 +97,7 @@ final class OrderPlacedEvent
 Firing it from an Action:
 
 ```php
-public function handle(CreateOrderDto $dto): Order
+public function handle(CreateOrderData $dto): Order
 {
     $order = DB::transaction(fn () => Order::create([...]));
     event(new OrderPlacedEvent($order));

@@ -126,7 +126,7 @@ final class InsufficientInventoryException extends \DomainException
 ```php
 final class PlaceOrderAction
 {
-    public function handle(CreateOrderDto $dto): Order
+    public function handle(CreateOrderData $dto): Order
     {
         if (!$this->inventory->isAvailable($dto->items)) {
             throw new InsufficientInventoryException(
@@ -143,7 +143,7 @@ final class PlaceOrderAction
 ```php
 final class StripeService
 {
-    public function refund(string $chargeId, int $amount): RefundDto
+    public function refund(string $chargeId, int $amount): RefundData
     {
         try {
             $response = $this->client->refunds->create([
@@ -156,7 +156,7 @@ final class StripeService
             throw new PaymentGatewayException($e->getMessage(), previous: $e);
         }
 
-        return RefundDto::from($response);
+        return RefundData::from($response);
     }
 }
 ```
@@ -166,7 +166,7 @@ final class StripeService
 ```php
 final class PlaceOrderAction
 {
-    public function handle(CreateOrderDto $dto): Order
+    public function handle(CreateOrderData $dto): Order
     {
         $order = DB::transaction(fn () => /* create order */);
 

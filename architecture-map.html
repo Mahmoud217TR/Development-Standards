@@ -220,7 +220,7 @@
           <div class="label"><span class="ico">&#129518;</span> Controller</div>
           <div class="sub">thin — 3 to 6 lines</div>
           <ul class="steps">
-            <li><span class="s">1</span> build DTO: <code>Dto::from($request-&gt;validated())</code></li>
+            <li><span class="s">1</span> build DTO: <code>{X}Data::from($request-&gt;validated())</code></li>
             <li><span class="s">2</span> invoke <code>$action-&gt;handle($dto)</code></li>
             <li><span class="s">3</span> wrap result in a JsonResource</li>
           </ul>
@@ -272,7 +272,7 @@
         <div class="node n-read"><div class="label"><span class="ico">&#129518;</span> Controller</div><div class="sub">thin HTTP adapter</div></div>
         <div class="conn"><div class="tag">builds</div><div class="arrow"></div></div>
 
-        <div class="node n-read"><div class="label"><span class="ico">&#128290;</span> FiltersDto</div><div class="sub">query params &rarr; typed DTO</div></div>
+        <div class="node n-read"><div class="label"><span class="ico">&#128290;</span> FiltersData</div><div class="sub">query params &rarr; typed DTO</div></div>
         <div class="conn"><div class="arrow"></div></div>
 
         <div class="node n-read">

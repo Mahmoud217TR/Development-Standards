@@ -10,7 +10,7 @@ This project follows strict team development standards. Read the skills in `.ai/
 ## Core rules
 
 - Every concrete class is `final` unless abstract
-- Class names carry their type suffix: `PlaceOrderAction`, `OrderPlacedEvent`, `CreateOrderDto`, `OrderResource`, `SmsService`, `SendOrderConfirmationSmsListener`, `ImportProductsFromCsvJob`
+- Class names carry their type suffix: `PlaceOrderAction`, `OrderPlacedEvent`, `CreateOrderData`, `OrderResource`, `SmsService`, `SendOrderConfirmationSmsListener`, `ImportProductsFromCsvJob`
 - Folder structure: flat until 8 files of a type, then promote ALL to domain subfolders atomically. Listeners are always flat
 - HTTP endpoints follow the triad: FormRequest (authorize + validate) → DTO (transport, no validation) → Action (logic) → JsonResource (output)
 - DTOs use `public readonly` properties, `spatie/laravel-data` base, NO validation attributes

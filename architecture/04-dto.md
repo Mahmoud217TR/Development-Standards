@@ -22,17 +22,17 @@ To replace ad-hoc arrays between layers with explicit, typed contracts. A DTO is
 4. **All DTOs `final`.**
 5. **No methods beyond the constructor** (and inherited `::from()`). No calculations, no formatting, no business logic.
 6. **No TypeScript attributes.** Frontend types maintained separately.
-7. Suffix is **`Dto`**, not `Data`.
+7. Suffix is **`Data`**, not `Dto`.
 
 ### Naming
 
 | Pattern | Use case | Example |
 |---|---|---|
-| `Create{X}Dto` | Input for POST | `CreateOrderDto` |
-| `Update{X}Dto` | Input for PUT/PATCH (all fields together) | `UpdateOrderDto` |
-| `Update{X}{Field}Dto` | Input for partial / scoped update | `UpdateUserNameDto`, `UpdateUserEmailDto` |
-| `{X}FiltersDto` | Query parameters for read endpoints | `OrderFiltersDto` |
-| `{X}Dto` | Generic inter-layer transport | `OrderConfirmationDto` |
+| `Create{X}Data` | Input for POST | `CreateOrderData` |
+| `Update{X}Data` | Input for PUT/PATCH (all fields together) | `UpdateOrderData` |
+| `Update{X}{Field}Data` | Input for partial / scoped update | `UpdateUserNameData`, `UpdateUserEmailData` |
+| `{X}FiltersData` | Query parameters for read endpoints | `OrderFiltersData` |
+| `{X}Data` | Generic inter-layer transport | `OrderConfirmationData` |
 
 ## Shape
 
@@ -41,7 +41,7 @@ namespace App\Data\{Domain};
 
 use Spatie\LaravelData\Data;
 
-final class {Name}Dto extends Data
+final class {Name}Data extends Data
 {
     public function __construct(
         public readonly string $field,
@@ -80,7 +80,7 @@ N/A — DTOs are themselves the result of `::from()`.
 ## Lifecycle
 
 1. FormRequest validates incoming HTTP data
-2. Controller calls `{X}Dto::from($request->validated())`
+2. Controller calls `{X}Data::from($request->validated())`
 3. `spatie/laravel-data` constructs the DTO with typed, readonly properties
 4. DTO is passed to an Action as a parameter
 5. Action accesses DTO properties directly: `$dto->customer_name`
@@ -101,12 +101,12 @@ namespace App\Data\Orders;
 
 use Spatie\LaravelData\Data;
 
-final class CreateOrderDto extends Data
+final class CreateOrderData extends Data
 {
     public function __construct(
         public readonly string $customer_name,
         public readonly string $phone,
-        /** @var array<OrderItemDto> */
+        /** @var array<OrderItemData> */
         public readonly array $items,
         public readonly ?string $notes = null,
     ) {}
@@ -116,7 +116,7 @@ final class CreateOrderDto extends Data
 ### Nested DTO
 
 ```php
-final class OrderItemDto extends Data
+final class OrderItemData extends Data
 {
     public function __construct(
         public readonly int $product_id,
@@ -130,7 +130,7 @@ final class OrderItemDto extends Data
 ```php
 use Carbon\Carbon;
 
-final class OrderFiltersDto extends Data
+final class OrderFiltersData extends Data
 {
     public function __construct(
         public readonly ?string $status = null,
@@ -148,21 +148,21 @@ final class OrderFiltersDto extends Data
 
 ```php
 // app/Data/Users/
-final class UpdateUserNameDto extends Data
+final class UpdateUserNameData extends Data
 {
     public function __construct(
         public readonly string $name,
     ) {}
 }
 
-final class UpdateUserEmailDto extends Data
+final class UpdateUserEmailData extends Data
 {
     public function __construct(
         public readonly string $email,
     ) {}
 }
 
-final class UpdateUserAddressDto extends Data
+final class UpdateUserAddressData extends Data
 {
     public function __construct(
         public readonly string $street,
@@ -183,7 +183,7 @@ namespace App\Data\Orders;
 use App\Models\Order\Order;
 use Spatie\LaravelData\Data;
 
-final class OrderConfirmationDto extends Data
+final class OrderConfirmationData extends Data
 {
     public function __construct(
         public readonly Order $order,
@@ -194,13 +194,13 @@ final class OrderConfirmationDto extends Data
 
 ```php
 // In the Action
-public function handle(CreateOrderDto $dto): OrderConfirmationDto
+public function handle(CreateOrderData $dto): OrderConfirmationData
 {
     return DB::transaction(function () use ($dto) {
         $order = Order::create([...]);
         $points = $this->loyalty->awardPointsFor($order);
 
-        return new OrderConfirmationDto(
+        return new OrderConfirmationData(
             order: $order,
             points_earned: $points,
         );
@@ -213,7 +213,7 @@ public function handle(CreateOrderDto $dto): OrderConfirmationDto
 ```php
 public function store(StoreOrderRequest $request, PlaceOrderAction $action)
 {
-    $dto = CreateOrderDto::from($request->validated());
+    $dto = CreateOrderData::from($request->validated());
     $order = $action->handle($dto);
     return new OrderResource($order);
 }
@@ -222,7 +222,7 @@ public function store(StoreOrderRequest $request, PlaceOrderAction $action)
 The flow:
 1. `StoreOrderRequest` validates the incoming request body
 2. `$request->validated()` returns a clean array of validated fields
-3. `CreateOrderDto::from(...)` constructs the typed DTO from that array
+3. `CreateOrderData::from(...)` constructs the typed DTO from that array
 4. The Action receives a typed object, not a loose array
 
 ### Constructing DTOs manually (outside HTTP context)
@@ -231,15 +231,15 @@ DTOs are not coupled to requests — they work from anywhere:
 
 ```php
 // In a console command
-$dto = new CreateOrderDto(
+$dto = new CreateOrderData(
     customer_name: 'Test Customer',
     phone: '0912345678',
-    items: [new OrderItemDto(product_id: 1, quantity: 2)],
+    items: [new OrderItemData(product_id: 1, quantity: 2)],
 );
 $action->handle($dto);
 
 // Or from another source
-$dto = CreateOrderDto::from([
+$dto = CreateOrderData::from([
     'customer_name' => 'Test Customer',
     'phone' => '0912345678',
     'items' => [['product_id' => 1, 'quantity' => 2]],

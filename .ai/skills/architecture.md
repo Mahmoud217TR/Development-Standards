@@ -13,7 +13,7 @@ Every write endpoint flows through three distinct classes, each with one job:
 | Tool | Job | Lives in | Suffix |
 |---|---|---|---|
 | **FormRequest** | Authorize + Validate input | `app/Http/Requests/` | `Request` |
-| **DTO** | Carry validated data between layers | `app/Data/` | `Dto` |
+| **DTO** | Carry validated data between layers | `app/Data/` | `Data` |
 | **JsonResource** | Format Model → JSON output | `app/Http/Resources/` | `Resource` |
 
 Validation NEVER lives in DTOs or Controllers. Output formatting NEVER lives in DTOs or Controllers. Authorization NEVER lives in Actions or Controllers.
@@ -57,7 +57,7 @@ Every class of a known type carries the type as its suffix.
 | Action | `Action` | `PlaceOrderAction` |
 | Query | `Query` | `ListUserOrdersQuery` |
 | Service | `Service` | `SmsService`, `OrderNumberGeneratorService` |
-| DTO | `Dto` | `CreateOrderDto` |
+| DTO | `Data` | `CreateOrderData` |
 | Event | `Event` | `OrderPlacedEvent` |
 | Listener | `Listener` | `SendOrderConfirmationSmsListener` |
 | Job | `Job` | `ImportProductsFromCsvJob` |
@@ -138,7 +138,7 @@ final class FakeSmsService implements SmsServiceContract { /* tests/Fakes/ */ }
 **Forbidden in classes with constructors** (Actions, Queries, Services, Jobs, Listeners, Controllers, Middleware, FormRequests, DTOs):
 
 ```php
-public function handle(CreateOrderDto $dto): Order
+public function handle(CreateOrderData $dto): Order
 {
     $sms = app(SmsService::class);  // ❌ NO
 }
@@ -151,7 +151,7 @@ public function __construct(
     private SmsService $sms,
 ) {}
 
-public function handle(CreateOrderDto $dto): Order
+public function handle(CreateOrderData $dto): Order
 {
     $this->sms->send(...);  // ✅
 }
@@ -165,7 +165,7 @@ public function handle(CreateOrderDto $dto): Order
 
 **File:** `app/Actions/{Domain}/{Verb}{Object}Action.php`
 **Method:** `handle()` (single public method)
-**Returns:** Model, or a Dto if returning composite data
+**Returns:** Model, or a Data class if returning composite data
 
 ### Skeleton
 
@@ -176,7 +176,7 @@ declare(strict_types=1);
 
 namespace App\Actions\Orders;
 
-use App\Data\Orders\CreateOrderDto;
+use App\Data\Orders\CreateOrderData;
 use App\Events\OrderPlacedEvent;
 use App\Exceptions\InsufficientInventoryException;
 use App\Models\Order\Order;
@@ -191,7 +191,7 @@ final class PlaceOrderAction
         private OrderNumberGeneratorService $numbers,
     ) {}
 
-    public function handle(CreateOrderDto $dto): Order
+    public function handle(CreateOrderData $dto): Order
     {
         // 1. preconditions → throw domain exception
         if (!$this->inventory->isAvailable($dto->items)) {
@@ -229,8 +229,8 @@ final class PlaceOrderAction
 2. Synchronous — never `implements ShouldQueue`
 3. All persistence inside `DB::transaction()` when 2+ writes are involved
 4. Events fire AFTER the transaction commits (otherwise queued listeners read uncommitted data)
-5. Returns Model (preferred) or Dto (for composite results)
-6. Never accepts `Request`; accepts a Dto
+5. Returns Model (preferred) or a Data class (for composite results)
+6. Never accepts `Request`; accepts a DTO
 7. `final`
 8. Throws domain exceptions for business-rule violations
 9. Catching is forbidden except for explicit business fallback (with `// @reason ...` comment)
@@ -241,7 +241,7 @@ final class PlaceOrderAction
 
 **File:** `app/Queries/{Domain}/{Verb}{Object}Query.php`
 **Method:** `handle()`
-**Returns:** Collection / LengthAwarePaginator / Dto / Model
+**Returns:** Collection / LengthAwarePaginator / Data class / Model
 
 ### Skeleton
 
@@ -252,13 +252,13 @@ declare(strict_types=1);
 
 namespace App\Queries\Orders;
 
-use App\Data\Orders\OrderFiltersDto;
+use App\Data\Orders\OrderFiltersData;
 use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 final class ListUserOrdersQuery
 {
-    public function handle(User $user, OrderFiltersDto $filters): LengthAwarePaginator
+    public function handle(User $user, OrderFiltersData $filters): LengthAwarePaginator
     {
         return $user->orders()
             ->when($filters->status, fn ($q, $status) => $q->where('status', $status))
@@ -280,7 +280,7 @@ final class ListUserOrdersQuery
 1. **Read-only.** Never writes, never fires events, never has side effects
 2. Exactly one public method: `handle()`
 3. Returns typed result; never raw arrays
-4. Accepts filter Dto / domain model / primitive — never `Request`
+4. Accepts filter DTO / domain model / primitive — never `Request`
 5. Never calls Actions
 6. Never uses `auth()` inside — pass user as parameter so it's usable from jobs/console
 7. `final`
@@ -303,7 +303,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Data\Payments\RefundDto;
+use App\Data\Payments\RefundData;
 use App\Exceptions\PaymentDeclinedException;
 use App\Exceptions\PaymentGatewayException;
 
@@ -313,7 +313,7 @@ final class StripeService implements PaymentGatewayContract
         private \Stripe\StripeClient $client,
     ) {}
 
-    public function refund(string $chargeId, int $amount): RefundDto
+    public function refund(string $chargeId, int $amount): RefundData
     {
         try {
             $response = $this->client->refunds->create([
@@ -326,7 +326,7 @@ final class StripeService implements PaymentGatewayContract
             throw new PaymentGatewayException($e->getMessage(), previous: $e);
         }
 
-        return RefundDto::from($response);
+        return RefundData::from($response);
     }
 }
 ```
@@ -366,16 +366,16 @@ final class OrderNumberGeneratorService
 
 ## DTO — typed transport
 
-**File:** `app/Data/{Domain}/{Name}Dto.php`
+**File:** `app/Data/{Domain}/{Name}Data.php`
 **Built on:** `spatie/laravel-data` (for `::from()` only — NO validation attributes, NO TypeScript attributes)
 **Properties:** `public readonly` always
 
 ### Naming
 
-- `Create{X}Dto` — input for creation (POST)
-- `Update{X}Dto` — input for update; OR `Update{X}{Field}Dto` for per-field-group updates
-- `{X}FiltersDto` — query parameters for Queries
-- `{X}Dto` — generic transport between layers
+- `Create{X}Data` — input for creation (POST)
+- `Update{X}Data` — input for update; OR `Update{X}{Field}Data` for per-field-group updates
+- `{X}FiltersData` — query parameters for Queries
+- `{X}Data` — generic transport between layers
 
 ### Skeleton
 
@@ -388,12 +388,12 @@ namespace App\Data\Orders;
 
 use Spatie\LaravelData\Data;
 
-final class CreateOrderDto extends Data
+final class CreateOrderData extends Data
 {
     public function __construct(
         public readonly string $customer_name,
         public readonly string $phone,
-        /** @var array<OrderItemDto> */
+        /** @var array<OrderItemData> */
         public readonly array $items,
         public readonly ?string $notes = null,
     ) {}
@@ -412,7 +412,7 @@ namespace App\Data\Orders;
 use Carbon\Carbon;
 use Spatie\LaravelData\Data;
 
-final class OrderFiltersDto extends Data
+final class OrderFiltersData extends Data
 {
     public function __construct(
         public readonly ?string $status = null,
@@ -433,7 +433,7 @@ final class OrderFiltersDto extends Data
 3. **No TypeScript attributes.** Frontend types maintained separately
 4. All properties `public readonly`
 5. `final`
-6. Suffix is `Dto`, never `Data`
+6. Suffix is `Data`, never `Data`
 
 ---
 
@@ -586,7 +586,7 @@ final class ImportProductsFromCsvJob implements ShouldQueue
 
 1. `implements ShouldQueue` (always)
 2. Dispatched via `Job::dispatch(...)`, never called directly except in tests
-3. Constructor args must be **serializable** (primitives, Models via `SerializesModels`, Dtos, file paths). NOT raw file handles or HTTP clients
+3. Constructor args must be **serializable** (primitives, Models via `SerializesModels`, DTOs, file paths). NOT raw file handles or HTTP clients
 4. `handle()` injects Services via type hints
 5. Jobs MAY fire Events from `handle()` (e.g., bulk imports announcing completion)
 6. Jobs SHOULD NOT call Actions directly — if they would, reconsider whether the work belongs as an Action+Job split
@@ -614,9 +614,9 @@ namespace App\Http\Controllers;
 use App\Actions\Orders\PlaceOrderAction;
 use App\Actions\Orders\UpdateOrderAction;
 use App\Actions\Orders\CancelOrderAction;
-use App\Data\Orders\CreateOrderDto;
-use App\Data\Orders\UpdateOrderDto;
-use App\Data\Orders\OrderFiltersDto;
+use App\Data\Orders\CreateOrderData;
+use App\Data\Orders\UpdateOrderData;
+use App\Data\Orders\OrderFiltersData;
 use App\Http\Requests\Orders\StoreOrderRequest;
 use App\Http\Requests\Orders\UpdateOrderRequest;
 use App\Http\Requests\Orders\DestroyOrderRequest;
@@ -629,7 +629,7 @@ final class OrderController
 {
     public function index(Request $request, ListUserOrdersQuery $query)
     {
-        $filters = OrderFiltersDto::from($request->query());
+        $filters = OrderFiltersData::from($request->query());
         return OrderResource::collection(
             $query->handle($request->user(), $filters)
         );
@@ -642,14 +642,14 @@ final class OrderController
 
     public function store(StoreOrderRequest $request, PlaceOrderAction $action)
     {
-        $dto = CreateOrderDto::from($request->validated());
+        $dto = CreateOrderData::from($request->validated());
         $order = $action->handle($dto);
         return new OrderResource($order->load('items'));
     }
 
     public function update(UpdateOrderRequest $request, Order $order, UpdateOrderAction $action)
     {
-        $dto = UpdateOrderDto::from($request->validated());
+        $dto = UpdateOrderData::from($request->validated());
         $order = $action->handle($order, $dto);
         return new OrderResource($order->load('items'));
     }
@@ -672,7 +672,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Orders;
 
 use App\Actions\Orders\MarkOrderAsShippedAction;
-use App\Data\Orders\ShipOrderDto;
+use App\Data\Orders\ShipOrderData;
 use App\Http\Requests\Orders\ShipOrderRequest;
 use App\Http\Resources\OrderResource;
 use App\Models\Order\Order;
@@ -684,7 +684,7 @@ final class MarkOrderAsShippedController
         Order $order,
         MarkOrderAsShippedAction $action,
     ) {
-        $dto = ShipOrderDto::from($request->validated());
+        $dto = ShipOrderData::from($request->validated());
         $order = $action->handle($order, $dto);
         return new OrderResource($order);
     }
@@ -695,7 +695,7 @@ final class MarkOrderAsShippedController
 
 1. **No business logic, no query building, no validation rules**
 2. Each method 3–6 lines after parameter declarations
-3. DTOs constructed **inside** the method body via `Dto::from($request->validated())` — NOT injected as parameters
+3. DTOs constructed **inside** the method body via `{X}Data::from($request->validated())` — NOT injected as parameters
 4. Actions/Queries/FormRequests received via method-level DI
 5. Resource controllers preferred for CRUD; invokable for non-CRUD endpoints
 6. `final`
@@ -1132,16 +1132,16 @@ For everything else, fire an Event and let Listeners react.
 
 ## Per-field-group updates
 
-When an entity has distinct update flows with different validation/authorization/side effects, use separate FormRequest + Dto + Action per flow. Example for User:
+When an entity has distinct update flows with different validation/authorization/side effects, use separate FormRequest + DTO + Action per flow. Example for User:
 
 ```
 app/Http/Requests/Users/UpdateUserNameRequest.php
 app/Http/Requests/Users/UpdateUserEmailRequest.php
 app/Http/Requests/Users/UpdateUserAddressRequest.php
 
-app/Data/Users/UpdateUserNameDto.php
-app/Data/Users/UpdateUserEmailDto.php
-app/Data/Users/UpdateUserAddressDto.php
+app/Data/Users/UpdateUserNameData.php
+app/Data/Users/UpdateUserEmailData.php
+app/Data/Users/UpdateUserAddressData.php
 
 app/Actions/Users/UpdateUserNameAction.php
 app/Actions/Users/UpdateUserEmailAction.php      # may trigger re-verification
@@ -1155,7 +1155,7 @@ Routes:
   PATCH /profile/address  → ProfileController@updateAddress
 ```
 
-Use a single combined `UpdateUserDto` with optional fields ONLY when one form legitimately edits all fields together (admin "edit user" page).
+Use a single combined `UpdateUserData` with optional fields ONLY when one form legitimately edits all fields together (admin "edit user" page).
 
 ---
 
@@ -1163,7 +1163,7 @@ Use a single combined `UpdateUserDto` with optional fields ONLY when one form le
 
 ```
 Is it a write operation triggered by an HTTP request?
-  → Controller method → FormRequest (validate) → Dto::from() → Action::handle()
+  → Controller method → FormRequest (validate) → {X}Data::from() → Action::handle()
 
 Is it a read operation, with 3+ filters or aggregation or reuse across endpoints?
   → Query class with handle() method
@@ -1190,7 +1190,7 @@ Is it formatting a model into JSON for HTTP output?
   → JsonResource
 
 Is it carrying validated data between layers?
-  → Dto
+  → Data class (DTO)
 
 Is it a domain failure (business rule violated)?
   → Throw a domain exception from app/Exceptions/
@@ -1205,7 +1205,7 @@ When you see these in code, refactor immediately:
 1. **Business logic in a controller method** → extract to Action
 2. **Query building in a controller** → extract to Query
 3. **`$request->validate([...])` inline in controller** → move to FormRequest
-4. **Validation attributes on Dto properties** → move to FormRequest
+4. **Validation attributes on Data class properties** → move to FormRequest
 5. **Resource accessing `Model::find()` or any query** → move logic to Action, pass result to Resource
 6. **`app()` or `resolve()` inside Action/Query/Service/Job/Listener/Controller method bodies** → inject in constructor
 7. **Non-final concrete class** → add `final`, or `abstract` if a base
@@ -1219,7 +1219,7 @@ When you see these in code, refactor immediately:
 15. **Mixed flat + nested folder structure** for the same type → promote all to subfolders
 16. **Observer class** → use `boot()`/`booted()` in the model or a trait in `Concerns/`
 17. **Listener with subfolder** → listeners are always flat
-18. **`Data` suffix on a DTO instead of `Dto`** → rename
+18. **`Data` suffix on a DTO instead of `Data`** → rename
 
 ---
 
@@ -1230,7 +1230,7 @@ When asked to create a new endpoint, generate this exact set of files:
 | File | Required? |
 |---|---|
 | `app/Http/Requests/{Domain}/{Verb}{Object}Request.php` | Yes (write endpoints) |
-| `app/Data/{Domain}/{Verb}{Object}Dto.php` | Yes (write endpoints) |
+| `app/Data/{Domain}/{Verb}{Object}Data.php` | Yes (write endpoints) |
 | `app/Actions/{Domain}/{Verb}{Object}Action.php` | Yes (write endpoints) |
 | `app/Http/Resources/{Model}Resource.php` | Yes if not already existing |
 | `app/Http/Controllers/{Resource}Controller.php` | Yes (or invokable controller) |

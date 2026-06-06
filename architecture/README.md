@@ -33,7 +33,7 @@ A single request from HTTP to response:
    c. rules() runs against the input → 422 if invalid
    d. withValidator() after-hooks run (optional)
 4. Controller method receives FormRequest with validated data
-5. Controller calls Dto::from($request->validated()) to construct typed DTO
+5. Controller calls {X}Data::from($request->validated()) to construct typed DTO
 6. Controller invokes Action::handle($dto) or Query::handle($filtersDto)
 7. Action runs:
    a. (optional) Preconditions / business rule checks → throw domain exception if violated
@@ -80,7 +80,7 @@ The HTTP boundary uses three distinct tools, each with one job:
 | Tool | Job | Lives in | Suffix |
 |---|---|---|---|
 | **FormRequest** | Authorize + Validate input | `app/Http/Requests/` | `Request` |
-| **DTO** | Carry validated data between layers | `app/Data/` | `Dto` |
+| **DTO** | Carry validated data between layers | `app/Data/` | `Data` |
 | **JsonResource** | Format Model into JSON output | `app/Http/Resources/` | `Resource` |
 
 The flow on every endpoint:
